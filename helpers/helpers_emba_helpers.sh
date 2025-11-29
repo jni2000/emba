@@ -366,7 +366,7 @@ cleaner() {
     exit 1
   fi
 
-  parse_emba_log_to_csv "${LOG_DIR}/emba.log" "${LOG_DIR}/emba_performance.csv" || {
+  parse_emba_log_to_csv "${LOG_DIR}"/emba.log "${LOG_DIR}"/emba_performance.csv || {
     print_output "[-] parse_emba_log_to_csv failed" "no_log"
   }
 }
@@ -383,7 +383,8 @@ emba_updater() {
     print_output "[-] WARNING: Can't update non git version of EMBA" "no_log"
   fi
 
-  EMBA="${INVOCATION_PATH}" FIRMWARE="${FIRMWARE_PATH}" LOG="${LOG_DIR}" docker pull embeddedanalyzer/emba
+  # EMBA="${INVOCATION_PATH}" FIRMWARE="${FIRMWARE_PATH}" LOG="${LOG_DIR}" docker pull embeddedanalyzer/emba
+  EMBA="${INVOCATION_PATH}" FIRMWARE="${FIRMWARE_PATH}" LOG="${LOG_DIR}" docker pull jni2000/emba
 
   if [[ -d "${EXT_DIR}"/EPSS-data ]]; then
     print_output "[*] EMBA update - EPSS database update" "no_log"
@@ -412,8 +413,8 @@ emba_updater() {
   fi
 
   print_output "[*] EMBA update - docker image" "no_log"
-  docker pull embeddedanalyzer/emba
-
+  # docker pull embeddedanalyzer/emba
+  docker pull jni2000/emba
   print_output "[*] Please note that this was no update of installed system packages." "no_log"
   print_output "[*] Please restart your EMBA scan to apply the updates ..." "no_log"
 }

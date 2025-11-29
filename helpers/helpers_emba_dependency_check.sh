@@ -195,7 +195,8 @@ check_git_hash() {
 check_docker_image() {
   local lREMOTE_DOCKER_HASH="${1:-}"
   local lLOCAL_DOCKER_HASH=""
-  lLOCAL_DOCKER_HASH="$(docker inspect --format='{{.RepoDigests}}' embeddedanalyzer/emba:latest | tr -d ']' || true)"
+  # lLOCAL_DOCKER_HASH="$(docker inspect --format='{{.RepoDigests}}' embeddedanalyzer/emba:latest | tr -d ']' || true)"
+  lLOCAL_DOCKER_HASH="$(docker inspect --format='{{.RepoDigests}}' jni2000/emba:latest | tr -d ']' || true)"
   lLOCAL_DOCKER_HASH=${lLOCAL_DOCKER_HASH/*:}
 
   if [[ "${lLOCAL_DOCKER_HASH}" == "${lREMOTE_DOCKER_HASH}" ]]; then
