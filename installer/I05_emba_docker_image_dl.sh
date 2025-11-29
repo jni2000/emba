@@ -22,7 +22,8 @@ I05_emba_docker_image_dl() {
   if [[ "${LIST_DEP}" -eq 1 ]] || [[ "${IN_DOCKER}" -eq 0 ]] || [[ "${DOCKER_SETUP}" -eq 1 ]] || [[ "${FULL}" -eq 1 ]]; then
     # print_tool_info "docker.io" 1 "docker" "docker-ce"
 
-    echo -e "\\n""${ORANGE}""${BOLD}""embeddedanalyzer/emba docker image""${NC}"
+    # echo -e "\\n""${ORANGE}""${BOLD}""embeddedanalyzer/emba docker image""${NC}"
+    echo -e "\\n""${ORANGE}""${BOLD}""jni2000/emba docker image""${NC}"
     echo -e "Description: EMBA docker images used for firmware analysis."
 
     if command -v docker > /dev/null; then
@@ -71,13 +72,15 @@ I05_emba_docker_image_dl() {
               echo -e "${ORANGE}""Checking if we have any usable local images ...""${NC}"
 
               # Check if there are any embeddedanalyzer/emba images
-              if ! docker images | grep -q "embeddedanalyzer/emba"; then
+	      # if ! docker images | grep -q "embeddedanalyzer/emba"; then
+              if ! docker images | grep -q "jni2000/emba"; then
                 echo -e "${RED}""No local EMBA images found. Installation may be incomplete.""${NC}"
                 exit 1
               else
                 echo -e "${GREEN}""Found alternative local EMBA image, will use that instead.""${NC}"
                 # Use the latest local EMBA image
-                LOCAL_IMAGE=$(docker images embeddedanalyzer/emba --format "{{.Repository}}:{{.Tag}}" | head -1)
+                # LOCAL_IMAGE=$(docker images embeddedanalyzer/emba --format "{{.Repository}}:{{.Tag}}" | head -1)
+		LOCAL_IMAGE=$(docker images jni2000/emba --format "{{.Repository}}:{{.Tag}}" | head -1)
                 ORIGINAL_CONTAINER="${CONTAINER}"
                 CONTAINER="${LOCAL_IMAGE}"
 

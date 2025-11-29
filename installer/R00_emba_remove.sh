@@ -61,7 +61,8 @@ R00_emba_remove() {
   apt-get update -y
   systemctl daemon-reload
   echo -e "\\n""${ORANGE}""Removing EMBA docker image""${NC}"
-  docker image rm embeddedanalyzer/emba -f
+  # docker image rm embeddedanalyzer/emba -f
+  docker image rm jni2000/emba -f
   if [[ -d ./external ]]; then
     echo -e "\\n""${ORANGE}""Removing external directory""${NC}"
     rm -r ./external

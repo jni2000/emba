@@ -725,7 +725,8 @@ main() {
     # try it 10 times before exit
     local lCNT_DOCK=0
     for lCNT_DOCK in {1..10}; do
-      if ! docker images | grep -qE "embeddedanalyzer/emba"; then
+      # if ! docker images | grep -qE "embeddedanalyzer/emba"; then
+      if ! docker images | grep -qE "jni2000/emba"; then
         sleep 1
       else
         break
@@ -823,11 +824,11 @@ main() {
           print_output "[*] $(print_date) - Access the web-report with ${ORANGE}firefox $(abs_path "${HTML_PATH}/index.html")${NC}" "main"
         fi
         cleaner 0
-        print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" \\n" "main"
+        print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" --1 \\n" "main"
       else
         # we do not need the log dir from dependency checker
         [[ -d "${LOG_DIR}" ]] && rm -rf "${LOG_DIR}"
-        print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" \\n" "no_log"
+        print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" --2 \\n" "no_log"
       fi
       exit 0
     else
@@ -1026,11 +1027,11 @@ main() {
     fi
     print_ln "no_log"
     if [[ -d "${LOG_DIR}" ]]; then
-      print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" \\n" "main"
+      print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" --3 \\n" "main"
       write_notification "EMBA finished analysis"
       rm -r "${TMP_DIR}" 2>/dev/null || true
     else
-      print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" \\n" "no_log"
+      print_output "[!] $(print_date) - Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" --4 \\n" "no_log"
     fi
   else
     print_output "[!] $(print_date) - No extracted firmware found" "no_log"

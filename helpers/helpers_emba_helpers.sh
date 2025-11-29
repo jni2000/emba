@@ -362,10 +362,11 @@ cleaner() {
   fi
   export CLEANED=1
   if [[ "${lINTERRUPT_CLEAN}" -eq 1 ]]; then
-    print_output "[!] Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" \\n" "no_log"
+    print_output "[!] Test ended on ""$(print_date)"" and took about ""$(show_runtime)"" --5 \\n" "no_log"
     exit 1
   fi
 
+  print_output "[*] parse_emba_log_to_csv ..." "main"
   parse_emba_log_to_csv "${LOG_DIR}"/emba.log "${LOG_DIR}"/emba_performance.csv || {
     print_output "[-] parse_emba_log_to_csv failed" "no_log"
   }

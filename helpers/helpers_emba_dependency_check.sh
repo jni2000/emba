@@ -628,7 +628,8 @@ dependency_check()
   if [[ "${DEP_ERROR}" -gt 0 ]] || [[ "${DEP_EXIT}" -gt 0 ]]; then
     print_output "\\n""${ORANGE}""Some dependencies are missing - please check your installation\\n" "no_log"
     if [[ "${IN_DOCKER}" -eq 1 ]]; then
-      print_output "${ORANGE}""Looks like your docker container is outdated - please update your base image: ""${NC}""sudo docker pull embeddedanalyzer/emba""${ORANGE}""'." "no_log"
+      # print_output "${ORANGE}""Looks like your docker container is outdated - please update your base image: ""${NC}""sudo docker pull embeddedanalyzer/emba""${ORANGE}""'." "no_log"
+      print_output "${ORANGE}""Looks like your docker container is outdated - please update your base image: ""${NC}""sudo docker pull jni2000/emba""${ORANGE}""'." "no_log"
     else
       print_output "${ORANGE}""To install all needed dependencies, run '""${NC}""sudo ./installer.sh""${ORANGE}""'." "no_log"
       print_output "${ORANGE}""Learn more about the installation on the EMBA wiki: ""${NC}""https://github.com/e-m-b-a/emba/wiki/installation\\n" "no_log"
