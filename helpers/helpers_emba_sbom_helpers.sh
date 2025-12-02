@@ -17,12 +17,12 @@
 #
 
 # first: build the properties path array
-# This can be used for the binary path (souce_path) and for paths extracted from a
+# This can be used for the binary path (source_path) and for paths extracted from a
 # package like deb or rpm (path). Additionally, it is commonly used for the architecture
 # and further meta data like the version identifier
 # parameter: array with all the properties in the form
 #   "path:the_path_to_log"
-#   "other_propertie:the_property_to_log"
+#   "other_properties:the_property_to_log"
 # returns global array PROPERTIES_JSON_ARR
 build_sbom_json_properties_arr() {
   local lPROPERTIES_ARRAY_INIT_ARR=("$@")
@@ -96,18 +96,24 @@ build_sbom_json_hashes_arr() {
     lSHA256_CHECKSUM="$(sha256sum "${lBINARY}" | awk '{print $1}')"
     lSHA512_CHECKSUM="$(sha512sum "${lBINARY}" | awk '{print $1}')"
 
-    # temp array with only one set of hash values
-    local lHASHES_ARRAY_INIT=("alg=MD5")
-    lHASHES_ARRAY_INIT+=("content=${lMD5_CHECKSUM}")
-    HASHES_ARR+=( "$(jo "${lHASHES_ARRAY_INIT[@]}")" )
+    if [[ -n "${lMD5_CHECKSUM}" ]]; then
+      # temp array with only one set of hash values
+      local lHASHES_ARRAY_INIT=("alg=MD5")
+      lHASHES_ARRAY_INIT+=("content=${lMD5_CHECKSUM}")
+      HASHES_ARR+=( "$(jo "${lHASHES_ARRAY_INIT[@]}")" )
+    fi
 
-    lHASHES_ARRAY_INIT=("alg=SHA-256")
-    lHASHES_ARRAY_INIT+=("content=${lSHA256_CHECKSUM}")
-    HASHES_ARR+=( "$(jo "${lHASHES_ARRAY_INIT[@]}")" )
+    if [[ -n "${lSHA256_CHECKSUM}" ]]; then
+      lHASHES_ARRAY_INIT=("alg=SHA-256")
+      lHASHES_ARRAY_INIT+=("content=${lSHA256_CHECKSUM}")
+      HASHES_ARR+=( "$(jo "${lHASHES_ARRAY_INIT[@]}")" )
+    fi
 
-    lHASHES_ARRAY_INIT=("alg=SHA-512")
-    lHASHES_ARRAY_INIT+=("content=${lSHA512_CHECKSUM}")
-    HASHES_ARR+=( "$(jo "${lHASHES_ARRAY_INIT[@]}")" )
+    if [[ -n "${lSHA512_CHECKSUM}" ]]; then
+      lHASHES_ARRAY_INIT=("alg=SHA-512")
+      lHASHES_ARRAY_INIT+=("content=${lSHA512_CHECKSUM}")
+      HASHES_ARR+=( "$(jo "${lHASHES_ARRAY_INIT[@]}")" )
+    fi
   else
     print_output "[*] No real binary detected for ${lBINARY} - no checksums for the SBOM generated" "no_log"
   fi
@@ -140,7 +146,7 @@ build_sbom_json_hashes_arr() {
       # write_log "[*] Testing for duplicates ${lAPP_NAME}-${lAPP_VERS} / ${lDUP_CHECK_FILE}" "${SBOM_LOG_PATH}"/duplicates.txt
       lDUP_CHECK_NAME=$(jq -r .name "${lDUP_CHECK_FILE}")
       lDUP_CHECK_VERS=$(jq -r .version "${lDUP_CHECK_FILE}")
-      lDUP_RAND_ID="${RANDOM}"
+      local lDUP_RAND_ID="${RANDOM}"
       # we test the current version against the stored version. But as we often have a version from a package manager like
       # 1.2.3-deb-123abc and from the binary level we have only 1.2.3
       # To handle these cases we check against the version ^1.2.3*
@@ -162,6 +168,7 @@ build_sbom_json_hashes_arr() {
         fi
 
         # extract the confidence level from the json and compare it to our current level:
+        local lCONFIDENCE_LEVEL_JSON=""
         lCONFIDENCE_LEVEL_JSON=$(jq -r '.properties[] | select(.name | endswith(":confidence")).value' "${lDUP_CHECK_FILE}" || true)
         if [[ "${lCONFIDENCE_LEVEL}" != "NA" ]] && [[ "${lCONFIDENCE_LEVEL_JSON:-NA}" != "NA" ]]; then
           write_log "[*] lCONFIDENCE_LEVEL: ${lCONFIDENCE_LEVEL} / lCONFIDENCE_LEVEL_JSON: $(get_confidence_value "${lCONFIDENCE_LEVEL_JSON}")" "${SBOM_LOG_PATH}"/duplicates.txt
@@ -258,7 +265,11 @@ build_sbom_json_component_arr() {
   fi
   lCOMPONENT_ARR+=( "group=${lPACKAGING_SYSTEM}" )
   lCOMPONENT_ARR+=( "bom-ref=${SBOM_COMP_BOM_REF}" )
-  if [[ "${#lAPP_LIC_ARR[@]}" -gt 0 ]]; then
+
+  # TODO: License information is currently disabled for Dependency Track compatibility.
+  #       Set SBOM_INCLUDE_LICENSE=true to include license data in SBOM output.
+  #       Re-enable when the EMBA SBOM is fully supported by Dependency Track.
+  if [[ "${SBOM_INCLUDE_LICENSE:-false}" == "true" ]] && [[ "${#lAPP_LIC_ARR[@]}" -gt 0 ]]; then
     local lTMP_IDENTIFIER="${RANDOM}"
     [[ ! -d "${TMP_DIR}" ]] && mkdir -p "${TMP_DIR}"
     # we should not work with the tmp file trick but otherwise jo does not handle our json correctly
@@ -303,10 +314,10 @@ translate_vendor() {
 }
 
 check_for_s08_csv_log() {
-  lS08_CSV_LOG="${1:-}"
+  local lS08_CSV_LOG="${1:-}"
   if [[ ! -f "${lS08_CSV_LOG}" ]]; then
     # using write_log as this always works
-    write_log "Packaging system;package file;MD5/SHA-256/SHA-512;package;original version;stripped version;license;maintainer;architecture;CPE identifier;PURL;SBOM comoponent reference;Description" "${lS08_CSV_LOG}"
+    write_log "Packaging system;package file;MD5/SHA-256/SHA-512;package;original version;stripped version;license;maintainer;architecture;CPE identifier;PURL;SBOM component reference;Description" "${lS08_CSV_LOG}"
   fi
 }
 
@@ -360,7 +371,7 @@ distri_check() {
     lOS_IDENTIFIED=${lOS_IDENTIFIED,,}
     # if it looks like an os then we are happy for now :)
     # for the future we can do some further checks if it is some debian for debs and some rpm based for rpm systems
-    if [[ "${lOS_IDENTIFIED}" =~ ^[a-z]+-[a-z]+$ ]]; then
+    if [[ "${lOS_IDENTIFIED}" =~ ^[a-z]+-[0-9a-z.]+$ ]]; then
       break
     fi
   done
@@ -405,3 +416,12 @@ get_confidence_value() {
   fi
 }
 
+validate_xml() {
+  local lXML_FILE="${1:-}"
+  # Check for XXE/DTD in XML before using xpath
+  if grep -q -E '<!DOCTYPE|<!ENTITY' "${lXML_FILE}"; then
+    print_output "[!] XML (${lXML_FILE}) with DOCTYPE detected; skipping to prevent XXE"
+    return 1
+  fi
+  return 0
+}

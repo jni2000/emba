@@ -34,7 +34,6 @@ set_defaults() {
   export DISABLE_DEEP=0
   export DEEP_EXTRACTOR="unblob"  # binwalk/unblob
   export DEEP_EXT_DEPTH=4
-  export FACT_EXTRACTOR=0
   export FIRMWARE=0
   export FORCE=0
   export FORMAT_LOG=0
@@ -90,7 +89,7 @@ set_defaults() {
 
   export SHELLCHECK=1
 
-  export GPT_OPTION=0           # 0 -> off 1-> unpayed plan 2 -> no rate-limit
+  export GPT_OPTION=0           # 0 -> off 1-> unpaid plan 2 -> no rate-limit
   export GPT_QUESTION="For the following code I need you to tell me how an attacker could exploit it and point out all vulnerabilities:"
   export MINIMUM_GPT_PRIO=1     # everything above this value gets checked
 
@@ -101,6 +100,7 @@ set_defaults() {
   export OVERWRITE_LOG=0        # automatically overwrite log directory, if necessary
   export MAX_EXT_SPACE=110000   # ensure we do not stop on extraction. If you are running into disk space issues you can adjust this variable
   export LOG_DIR="${INVOCATION_PATH}""/logs"
+  export BASIC_DATA_LOG_DIR="${LOG_DIR}/basic_data"
   # export ERROR_LOG="${LOG_DIR}/emba_error.log"  # This variable is reserved for logging errors. It is currently disabled but can be enabled for debugging purposes in the future.
   export TMP_DIR="${LOG_DIR}/tmp"
   export CSV_DIR="${LOG_DIR}/csv_logs"
@@ -170,7 +170,7 @@ set_defaults() {
   # -> just comment the submodule that should not be used
   # usually this should be done via a scan-profile
   export S08_MODULES_ARR=()
-  S08_MODULES_ARR=( "S08_submodule_debian_pkg_mgmt_parser" )
+  S08_MODULES_ARR+=( "S08_submodule_debian_pkg_mgmt_parser" )
   S08_MODULES_ARR+=( "S08_submodule_deb_package_parser" )
   S08_MODULES_ARR+=( "S08_submodule_openwrt_pkg_mgmt_parser" )
   S08_MODULES_ARR+=( "S08_submodule_openwrt_ipk_package_parser" )
@@ -191,6 +191,7 @@ set_defaults() {
   S08_MODULES_ARR+=( "S08_submodule_php_composer_lock" )
   S08_MODULES_ARR+=( "S08_submodule_python_pipfile_lock" )
   S08_MODULES_ARR+=( "S08_submodule_apk_pkg_mgmt_parser" )
+  S08_MODULES_ARR+=( "S08_submodule_sinamics_version_xml_parser" )
 }
 
 set_log_paths() {
@@ -265,6 +266,7 @@ set_log_paths() {
   export L25_LOG="${LOG_DIR}/l25_web_checks.txt"
   export L25_CSV_LOG="${CSV_DIR}/l25_web_checks.csv"
   export L35_CSV_LOG="${CSV_DIR}/l35_metasploit_check.csv"
+  export F14_JSON_LOG="${LOG_DIR}/f14_tag_builder/tags.json"
   export F15_LOG="${LOG_DIR}/f15_cyclonedx_sbom.txt"
   export F15_CSV_LOG="${CSV_DIR}/f15_cyclonedx_sbom.csv"
   export F17_LOG_DIR="${LOG_DIR}/f17_cve_bin_tool"

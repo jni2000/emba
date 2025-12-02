@@ -307,7 +307,7 @@ S09_identifier_threadings() {
           continue
         fi
         for lVERSION_IDENTIFIER in "${lSTRICT_VERSION_IDENTIFIER_ARR[@]}"; do
-          # print_output "[*] Testing identifier ${lVERSION_IDENTIFIER}"
+          # print_output "[*] Testing STRICT identifier ${lVERSION_IDENTIFIER}" "no_log"
           lVERSION_IDENTIFIED=$(grep -a -E "${lVERSION_IDENTIFIER}" "${lSTRINGS_OUTPUT}" | sort -u || true)
           if [[ -n ${lVERSION_IDENTIFIED} ]]; then
             print_ln "no_log"
@@ -674,11 +674,11 @@ build_cpe_identifier() {
     lBIN_VENDOR="${lBIN_NAME}"
   fi
   lBIN_VERS=$(echo "${lCSV_RULE}" | cut -d ':' -f4-)
-  # our CPE identifier should have 13 fields - sometimes our lBIN_VERS has multiple fields -> we need to count our fields and fill the rest
+  # our CPE identifier should have 14 fields - sometimes our lBIN_VERS has multiple fields -> we need to count our fields and fill the rest
   lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lBIN_VENDOR:-*}:${lBIN_NAME:-*}:${lBIN_VERS:-*}:"
   lCPE_LENGTH=$(echo "${lCPE_IDENTIFIER}" | tr ':' '\n' | wc -l)
 
-  while [[ "${lCPE_LENGTH}" -lt 13 ]]; do
+  while [[ "${lCPE_LENGTH}" -lt 14 ]]; do
     lCPE_IDENTIFIER+='*:'
     lCPE_LENGTH=$(echo "${lCPE_IDENTIFIER}" | tr ':' '\n' | wc -l)
   done
