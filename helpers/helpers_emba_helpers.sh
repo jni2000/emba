@@ -232,6 +232,120 @@ parse_emba_log_to_csv() {
     return 0
 }
 
+# -----------------------------------------------------------
+# Function: find_emba_missing_modules EMBA_LOG [OUTPUT_LOG]
+#
+# Finds modules that have "starting" lines but no corresponding
+# "finished" lines, and writes them into emba-missing-modules.log
+# (or a custom path if given).
+#
+# Pairing logic:
+#   - Every "X starting" is treated as a new instance.
+#   - Each "X finished" is matched to the earliest unmatched
+#     "X starting".
+#   - Any remaining unmatched "starting" instances are logged.
+# -----------------------------------------------------------
+find_emba_missing_modules() {
+    local LOG_FILE=${1:-}
+    local OUT_FILE=${2:-emba-missing-modules.log}
+
+    if [[ -z "$LOG_FILE" ]]; then
+        echo "Usage: $0 EMBA_LOG [OUTPUT_LOG]" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$LOG_FILE" ]]; then
+        echo "Error: input log file not found: $LOG_FILE" >&2
+        exit 1
+    fi
+
+    # Arrays to track each "instance" of a module
+    # index i:
+    #   module_name[i]  - module identifier (e.g. S18_capa_checker)
+    #   start_line[i]   - original log line for 'starting'
+    #   matched[i]      - 0 = no 'finished' yet, 1 = matched
+    declare -a module_name
+    declare -a start_line
+    declare -a matched
+
+    seq=0
+    while IFS= read -r line; do
+        # Strip possible Windows-style \r
+        line=${line%$'\r'}
+
+        # Only lines with " - " are interesting
+        [[ "$line" == *" - "* ]] || continue
+
+        # Skip blacklist / not executed lines
+        if [[ "$line" == *"not executed - blacklist triggered"* ]]; then
+            continue
+        fi
+
+        # Drop everything up to the first ']' (the [*]/[!] marker + colors)
+        rest="${line#*]}"
+        rest=${rest# }  # strip one leading space if present
+
+        # Now rest should be something like:
+        # "Wed Nov 26 13:10:24 EST 2025 - S26_kernel_vuln_verifier starting"
+        ts=${rest%% - *}
+        msg=${rest#* - }
+
+        # Normalize whitespace (just to be safe)
+        ts=${ts## }
+        ts=${ts%% }
+        msg=${msg## }
+        msg=${msg%% }
+
+        # STARTING line
+        if [[ "$msg" == *" starting" ]]; then
+            module=${msg% starting}
+            ((seq++))
+            module_name[$seq]="$module"
+            start_line[$seq]="$line"
+            matched[$seq]=0
+            continue
+        fi
+
+        # FINISHED line
+        if [[ "$msg" == *" finished" ]]; then
+            module=${msg% finished}
+
+            # Find earliest unmatched instance of this module
+            for ((i=1; i<=seq; i++)); do
+                if [[ "${module_name[$i]}" == "$module" && "${matched[$i]}" -eq 0 ]]; then
+                    matched[$i]=1
+                    break
+                fi
+            done
+            continue
+        fi
+
+        # Other lines ignored
+    done < "$LOG_FILE"
+
+    # Always create (or overwrite) the output file
+    {
+        echo "# EMBA modules with 'starting' but no corresponding 'finished'"
+        echo "# Log file: $LOG_FILE"
+        echo "# Generated: $(date)"
+        echo
+    } > "$OUT_FILE"
+
+    missing_count=0
+    for ((i=1; i<=seq; i++)); do
+        if [[ "${matched[$i]}" -eq 0 ]]; then
+            ((missing_count++))
+            echo "${start_line[$i]}" >> "$OUT_FILE"
+        fi
+    done
+
+    print_output "Found $missing_count module instance(s) without 'finished'." "no_log"
+    print_output "Details written to: $OUT_FILE" "no_log"
+
+    return 0
+}
+
+
 # $1 - 1 some interrupt detected
 # $1 - 0 default exit 0
 cleaner() {
@@ -366,10 +480,16 @@ cleaner() {
     exit 1
   fi
 
-  print_output "[*] parse_emba_log_to_csv ..." "main"
+  print_output "[*] parse_emba_log_to_csv ..." "no_log"
   parse_emba_log_to_csv "${LOG_DIR}"/emba.log "${LOG_DIR}"/emba_performance.csv || {
     print_output "[-] parse_emba_log_to_csv failed" "no_log"
   }
+
+  print_output "[*] find_emba_missing_modules ..." "no_log"
+  find_emba_missing_modules "${LOG_DIR}"/emba.log "${LOG_DIR}"/emba_missing_modules.log || {
+    print_output "[-] find_emba_missing_modules failed" "no_log"
+  }
+
 }
 
 emba_updater() {

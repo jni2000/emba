@@ -610,9 +610,9 @@ dependency_check()
 
   if [[ "${USE_DOCKER}" -eq 0  && "${CONTAINER_NUMBER}" -ne 2 ]]; then
     check_dep_file "cve-bin-tool" "${EXT_DIR}/cve-bin-tool/cve_bin_tool/cli.py"
-    preparing_cve_bin_tool &
-    local lTMP_PID="$!"
-    store_kill_pids "${lTMP_PID}"
+    preparing_cve_bin_tool 
+    # local lTMP_PID="$!"
+    # store_kill_pids "${lTMP_PID}"
 
     # prepare /root/.local and /root/.config directory for cwe_checker
     # and ensure r2 plugin dir is preserved
