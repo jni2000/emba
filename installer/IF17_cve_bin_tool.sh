@@ -26,7 +26,7 @@ IF17_cve_bin_tool() {
       print_tool_info "libjson-pp-perl"
       print_pip_info "protobuf"
       # print_pip_info "cve_bin_tool"
-      print_git_info "cve-bin-tool" "https://github.com/jni2000/cve-bin-tool.git" "cve-bin-tool"
+      print_git_info "cve-bin-tool" "https://github.com/EMBA-support-repos/cve-bin-tool.git" "cve-bin-tool"
     fi
 
     if [[ "${LIST_DEP}" -eq 1 ]] || [[ "${DOCKER_SETUP}" -eq 1 ]] ; then
@@ -45,7 +45,7 @@ IF17_cve_bin_tool() {
 	git clone https://github.com/jni2000/cve-bin-tool.git external/cve-bin-tool
 	## git clone https://github.com/intel/cve-bin-tool.git external/cve-bin-tool
         cd external/cve-bin-tool || ( echo "Could not install EMBA component cve-bin-tool" && exit 1 )
-        git checkout tags/v0.1
+	# git checkout v3.4
         pip install -U -r requirements.txt
         python3 -m pip install -e .
 

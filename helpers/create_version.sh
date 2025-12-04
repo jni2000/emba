@@ -13,7 +13,7 @@
 #
 # Author(s): Endri Hoxha
 
-# Description: creates a VERSION.txt file containing the version number of EMBA
+# Description: creates a VERSION.txt file containing the version number of emba and the local hash commit
 
 create_version() {
   local lVERSION=""

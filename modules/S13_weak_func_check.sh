@@ -190,6 +190,7 @@ function_check_NIOS2() {
   local lFUNC_ADDR=""
   local lFUNCTION=""
   export NETWORKING=0
+  export COUNT_FUNC=0
   export COUNT_STRLEN=0
   export COUNT_MMAP_OK=0
 
@@ -211,7 +212,6 @@ function_check_NIOS2() {
     # identify working readelf params:
     local lREADELF_PARAM_ARR=("-W" "-a")
     local lFUNC_TEST=""
-    export COUNT_FUNC=0
     lFUNC_TEST=$(readelf "${lBINARY_}" "${lREADELF_PARAM_ARR[@]}" 2>/dev/null | grep -E "${lFUNCTION}" 2>/dev/null || true)
     if [[ -z "${lFUNC_TEST}" ]] || [[ "${lFUNC_TEST}" == "00000000" ]]; then
       lFUNC_TEST=$(readelf "${lBINARY_}" "${lREADELF_PARAM_ARR[@]}" --use-dynamic 2>/dev/null | grep -E "${lFUNCTION}" 2>/dev/null || true)
@@ -253,11 +253,6 @@ function_check_NIOS2() {
         output_function_details "${lBINARY_}" "${lFUNCTION}"
       fi
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -271,6 +266,7 @@ function_check_PPC32() {
   local lSTRCPY_CNT=0
   local lFUNCTION=""
   export NETWORKING=0
+  export COUNT_FUNC=0
   export COUNT_STRLEN=0
   export COUNT_MMAP_OK=0
 
@@ -279,7 +275,6 @@ function_check_PPC32() {
   fi
 
   for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
-    export COUNT_FUNC=0
     # identify working readelf params:
     local lREADELF_PARAM_ARR=("-W" "-a")
     local lFUNC_TEST=""
@@ -317,11 +312,6 @@ function_check_PPC32() {
         output_function_details "${lBINARY_}" "${lFUNCTION}"
       fi
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -337,6 +327,7 @@ function_check_MIPS() {
   local lFUNC_ADDR=""
   local lFUNCTION=""
   export NETWORKING=0
+  export COUNT_FUNC=0
   export COUNT_STRLEN=0
   export COUNT_MMAP_OK=0
 
@@ -354,7 +345,6 @@ function_check_MIPS() {
   fi
 
   for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
-    export COUNT_FUNC=0
     local lREADELF_PARAM_ARR=("-W" "-a")
     lFUNC_ADDR=$(readelf "${lBINARY_}" "${lREADELF_PARAM_ARR[@]}" 2>/dev/null | grep -E \ "${lFUNCTION}" | grep gp | grep -m1 UND | cut -d\  -f4 | sed s/\(gp\)// | sed s/-// 2> /dev/null || true)
     if [[ -z "${lFUNC_ADDR}" ]] || [[ "${lFUNC_ADDR}" == "00000000" ]]; then
@@ -394,11 +384,6 @@ function_check_MIPS() {
         output_function_details "${lBINARY_}" "${lFUNCTION}"
       fi
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -429,7 +414,6 @@ function_check_ARM64() {
   fi
 
   for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
-    export COUNT_FUNC=0
     local lREADELF_PARAM_ARR=("-W" "-a")
     NETWORKING=$(readelf "${lBINARY_}" "${lREADELF_PARAM_ARR[@]}" 2>/dev/null | grep -E "FUNC[[:space:]]+UND" | grep -c "\ bind\|\ socket\|\ accept\|\ recvfrom\|\ listen" 2> /dev/null || true)
     if [[ -z "${NETWORKING}" ]] || [[ "${NETWORKING}" == "00000000" ]]; then
@@ -459,11 +443,6 @@ function_check_ARM64() {
       log_func_footer "${lBIN_NAME}" "${lFUNCTION}" "${FUNC_LOG}"
       output_function_details "${lBINARY_}" "${lFUNCTION}"
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -477,6 +456,7 @@ function_check_ARM32() {
   local lSTRCPY_CNT=0
   local lFUNCTION=""
   export NETWORKING=0
+  export COUNT_FUNC=0
   export COUNT_STRLEN=0
   export COUNT_MMAP_OK=0
 
@@ -493,7 +473,6 @@ function_check_ARM32() {
   fi
 
   for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
-    export COUNT_FUNC=0
     local lREADELF_PARAM_ARR=("-W" "-a")
     NETWORKING=$(readelf "${lBINARY_}" "${lREADELF_PARAM_ARR[@]}" 2>/dev/null | grep -E "FUNC[[:space:]]+UND" | grep -c "\ bind\|\ socket\|\ accept\|\ recvfrom\|\ listen" 2> /dev/null || true)
     if [[ -z "${NETWORKING}" ]] || [[ "${NETWORKING}" == "00000000" ]]; then
@@ -523,11 +502,6 @@ function_check_ARM32() {
       log_func_footer "${lBIN_NAME}" "${lFUNCTION}" "${FUNC_LOG}"
       output_function_details "${lBINARY_}" "${lFUNCTION}"
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -541,6 +515,7 @@ function_check_x86() {
   local lSTRCPY_CNT=0
   local lFUNCTION=""
   export NETWORKING=0
+  export COUNT_FUNC=0
   export COUNT_STRLEN=0
   export COUNT_MMAP_OK=0
 
@@ -549,7 +524,6 @@ function_check_x86() {
   fi
 
   for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
-    export COUNT_FUNC=0
     # identify working readelf params:
     local lREADELF_PARAM_ARR=("-W" "-a")
     local lFUNC_TEST=""
@@ -587,11 +561,6 @@ function_check_x86() {
         output_function_details "${lBINARY_}" "${lFUNCTION}"
       fi
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -605,6 +574,7 @@ function_check_x86_64() {
   local lSTRCPY_CNT=0
   local lFUNCTION=""
   export NETWORKING=0
+  export COUNT_FUNC=0
   export COUNT_STRLEN=0
   export COUNT_MMAP_OK=0
 
@@ -613,7 +583,6 @@ function_check_x86_64() {
   fi
 
   for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
-    export COUNT_FUNC=0
     # identify working readelf params:
     local lREADELF_PARAM_ARR=("-W" "-a")
     local lFUNC_TEST=""
@@ -651,11 +620,6 @@ function_check_x86_64() {
         output_function_details "${lBINARY_}" "${lFUNCTION}"
       fi
     fi
-
-    if [[ "${COUNT_FUNC}" -eq 0 ]]; then
-      [[ -f "${FUNC_LOG}" ]] && rm "${FUNC_LOG}"
-      continue
-    fi
   done
   echo "${lSTRCPY_CNT}" >> "${TMP_DIR}"/S13_STRCPY_CNT.tmp
 }
@@ -668,11 +632,11 @@ print_top10_statistics() {
 
   sub_module_title "Top 10 legacy C functions - Objdump disasm mode"
 
-  if [[ "$(find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_[0-9]*_*-*.txt" | wc -l)" -gt 0 ]]; then
+  if [[ "$(find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_*_*-*.txt" | wc -l)" -gt 0 ]]; then
     for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
       local lSEARCH_TERM=""
       local lF_COUNTER=0
-      readarray -t lRESULTS_ARR < <( find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_[0-9]*_""${lFUNCTION}""-*.txt" 2> /dev/null | sed "s/.*vul_func_//" | sort -g -r | head -10 | sed "s/_""${lFUNCTION}""-/  /" | sed "s/\.txt//" | grep -v "^0\ " 2> /dev/null || true)
+      readarray -t lRESULTS_ARR < <( find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_*_""${lFUNCTION}""-*.txt" 2> /dev/null | sed "s/.*vul_func_//" | sort -g -r | head -10 | sed "s/_""${lFUNCTION}""-/  /" | sed "s/\.txt//" | grep -v "^0\ " 2> /dev/null || true)
 
       if [[ "${#lRESULTS_ARR[@]}" -gt 0 ]]; then
         print_ln
@@ -685,7 +649,6 @@ print_top10_statistics() {
         for lBINARY in "${lRESULTS_ARR[@]}" ; do
           lSEARCH_TERM="$(echo "${lBINARY}" | awk '{print $2}')"
           lF_COUNTER="$(echo "${lBINARY}" | awk '{print $1}')"
-          [[ ! "${lF_COUNTER}" =~ ^[0-9]+$ ]] && continue
           [[ "${lF_COUNTER}" -eq 0 ]] && continue
           if [[ -f "${BASE_LINUX_FILES}" ]]; then
             # if we have the base linux config file we are checking it:

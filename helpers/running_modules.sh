@@ -18,7 +18,6 @@
 #               start it with "watch". E.g.,
 #               watch -c ./helpers/running_modules.sh ~/firmware-stuff/emba_logs_dir300_new_bins
 
-set -euo pipefail
 
 GREEN="\033[0;32m"
 ORANGE="\033[0;33m"
@@ -40,7 +39,7 @@ fi
 mapfile -t STARTED_EMBA_PROCESSES < <(grep -w starting "${EMBA_LOG_FILE}" | awk '{print $9}'|| true)
 
 for EMBA_STARTED_PROC in "${STARTED_EMBA_PROCESSES[@]}"; do
-  if ! grep -F -i -q "${EMBA_STARTED_PROC} finished" "${EMBA_LOG_FILE}"; then
+  if ! grep -i -q "${EMBA_STARTED_PROC} finished ${EMBA_LOG_FILE}"; then
     echo -e "[*] EMBA module ${GREEN}${EMBA_STARTED_PROC}${NC} currently running"
   fi
 done

@@ -83,7 +83,7 @@ S14_weak_func_radare_check()
             store_kill_pids "${lTMP_PID}"
             lWAIT_PIDS_S14_ARR+=( "${lTMP_PID}" )
           else
-            radare_function_check_x86 "${lBINARY}" "${lVULNERABLE_FUNCTIONS_ARR[@]}"
+            radare_function_check_x86
           fi
         elif [[ "${lBIN_FILE}" =~ Intel\ i386 ]]; then
           if [[ "${THREADED}" -eq 1 ]]; then
@@ -92,7 +92,7 @@ S14_weak_func_radare_check()
             store_kill_pids "${lTMP_PID}"
             lWAIT_PIDS_S14_ARR+=( "${lTMP_PID}" )
           else
-            radare_function_check_x86 "${lBINARY}" "${lVULNERABLE_FUNCTIONS_ARR[@]}"
+            radare_function_check_x86
           fi
 
         elif [[ "${lBIN_FILE}" =~ 32-bit.*ARM ]]; then
@@ -602,11 +602,11 @@ radare_print_top10_statistics() {
 
   sub_module_title "Top 10 legacy C functions - Radare2 disasm mode"
 
-  if [[ "$(find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_[0-9]*_*-*.txt" | wc -l)" -gt 0 ]]; then
+  if [[ "$(find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_*_*-*.txt" | wc -l)" -gt 0 ]]; then
     for lFUNCTION in "${lVULNERABLE_FUNCTIONS_ARR[@]}" ; do
       local lSEARCH_TERM=""
       local lF_COUNTER=0
-      readarray -t lRESULTS_ARR < <( find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_[0-9]*_${lFUNCTION}-*.txt" 2> /dev/null | sed "s/.*vul_func_//" | sort -g -r | head -10 | sed "s/_${lFUNCTION}-/  /" | sed "s/\.txt//" | grep -v "^0\ " 2> /dev/null || true)
+      readarray -t lRESULTS_ARR < <( find "${LOG_PATH_MODULE}" -xdev -iname "vul_func_*_${lFUNCTION}-*.txt" 2> /dev/null | sed "s/.*vul_func_//" | sort -g -r | head -10 | sed "s/_${lFUNCTION}-/  /" | sed "s/\.txt//" | grep -v "^0\ " 2> /dev/null || true)
 
       if [[ "${#lRESULTS_ARR[@]}" -gt 0 ]]; then
         print_ln
