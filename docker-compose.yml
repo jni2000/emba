@@ -1,7 +1,7 @@
 services:
   # nosemgrep
   emba:
-    image: jni2000/emba:1.5.2jni-e
+    image: jni2000/emba:1.5.2jni-f
     container_name: emba
     read_only: false
     # all pre-checker mount modules need privileged mode
@@ -53,7 +53,7 @@ services:
       - emba-custom-network
 
   emba_quest:
-    image: jni2000/emba:1.5.2jni-e
+    image: jni2000/emba:1.5.2jni-f
     container_name: emba_quest
     read_only: true
     tmpfs:
