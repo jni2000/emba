@@ -58,7 +58,9 @@ IF17_cve_bin_tool() {
         echo "linux_kernel,linux,2.6.36" >> "./cve_bin_tool_health_check.csv"
 
         if ! [[ -d "${HOME}"/.cache/cve-bin-tool ]]; then
-          mkdir "${HOME}"/.cache/cve-bin-tool
+	  echo "[*] .cache/cve-bin-tool not found!"
+	  exit 1
+          # mkdir "${HOME}"/.cache/cve-bin-tool
         fi
 
         if [[ "${GH_ACTION}" -eq 1 ]]; then
@@ -70,8 +72,8 @@ IF17_cve_bin_tool() {
           echo "[*] Testing the CVE database with the following test data:"
           cat ./cve_bin_tool_health_check.csv
 
-          echo "[*] Importing CVE database from /installer/cve-database.db"
-          python3 ./cve_bin_tool/cli.py --import /installer/cve-database.db || true
+          # echo "[*] Importing CVE database from /installer/cve-database.db"
+          # python3 ./cve_bin_tool/cli.py --import /installer/cve-database.db || true
           # testing import
           python3 ./cve_bin_tool/cli.py -i ./cve_bin_tool_health_check.csv --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o /tmp/cve_bin_tool_health_check_results || true
 
@@ -99,18 +101,18 @@ IF17_cve_bin_tool() {
         cd "${HOME_PATH}" || ( echo "Could not install EMBA component cve-bin-tool" && exit 1 )
         echo "[*] Exporting CVE database"
 
-        python3 external/cve-bin-tool/cve_bin_tool/cli.py --export external/cve-bin-tool/cve-database.db || true
+        # python3 external/cve-bin-tool/cve_bin_tool/cli.py --export external/cve-bin-tool/cve-database.db || true
 
         # cleanup
-        rm -r "${HOME}"/.cache/cve-bin-tool
+        # rm -r "${HOME}"/.cache/cve-bin-tool
         rm external/cve-bin-tool/cve_bin_tool_health_check.csv
 
-        if [[ -f external/cve-bin-tool/cve-database.db ]]; then
-          echo -e "${GREEN}[+] CVE database installed${NC}"
-        else
-          echo -e "${ORANGE}ERROR: Could not build cve-bin-tool database${NC}"
-          exit 1
-        fi
+        # if [[ -f external/cve-bin-tool/cve-database.db ]]; then
+        #   echo -e "${GREEN}[+] CVE database installed${NC}"
+        # else
+        #   echo -e "${ORANGE}ERROR: Could not build cve-bin-tool database${NC}"
+        #  exit 1
+        # fi
       ;;
     esac
   fi
