@@ -239,19 +239,25 @@ check_docker_version() {
 
 preparing_cve_bin_tool() {
   print_output "    Preparing cve-bin-tool ..." "no_log"
-  [[ ! -d "${HOME}"/.cache/cve-bin-tool ]] && mkdir "${HOME}"/.cache/cve-bin-tool
+  # [[ ! -d "${HOME}"/.cache/cve-bin-tool ]] && mkdir "${HOME}"/.cache/cve-bin-tool
+  if [[ ! -d "${HOME}"/.cache/cve-bin-tool ]]; then
+    print_output "[*] ${HOME}/.cache/cve-bin-tool not exist!" "no_log"
+  else
+    print_output "[*] ${HOME}/.cache/cve-bin-tool" "no_log"
+    ls ${HOME}/.cache/cve-bin-tool
+  fi
 
   # this is a health check of the cve-bin-tool with our database
 
   local lCVE_BIN_TOOL="/external/cve-bin-tool/cve_bin_tool/cli.py"
   # first: import the database
-  if [[ -f "${CONFIG_DIR}/cve-database.db" ]]; then
-    print_output "[*] Importing CVE config from EMBA config directory" "no_log"
-    python3 "${lCVE_BIN_TOOL}" --import "${CONFIG_DIR}/cve-database.db" &>/dev/null || true
-  elif [[ -f "${EXT_DIR}/cve-bin-tool/cve-database.db" ]]; then
-    print_output "[*] Importing CVE config from EMBA docker external directory" "no_log"
-    python3 "${lCVE_BIN_TOOL}" --import "${EXT_DIR}/cve-bin-tool/cve-database.db" &>/dev/null || true
-  fi
+  # if [[ -f "${CONFIG_DIR}/cve-database.db" ]]; then
+  #   print_output "[*] Importing CVE config from EMBA config directory" "no_log"
+  #   python3 "${lCVE_BIN_TOOL}" --import "${CONFIG_DIR}/cve-database.db" &>/dev/null || true
+  # elif [[ -f "${EXT_DIR}/cve-bin-tool/cve-database.db" ]]; then
+  #   print_output "[*] Importing CVE config from EMBA docker external directory" "no_log"
+  #   python3 "${lCVE_BIN_TOOL}" --import "${EXT_DIR}/cve-bin-tool/cve-database.db" &>/dev/null || true
+  # fi
 
   # 2nd: check the database
   write_log "product,vendor,version" "${TMP_DIR}/cve_bin_tool_health_check.csv"
@@ -514,12 +520,12 @@ dependency_check()
   fi
 
   print_output "    SQLite CVE database update in config directory - \\c" "no_log"
-  if [[ ! -f "${CONFIG_DIR}/cve-database.db" ]]; then
-    echo -e "${ORANGE}""not ok""${NC}"
-    echo -e "${ORANGE}""    Missing SQLite CVE database updates - Check update instructions""${NC}"
-  else
-    echo -e "${GREEN}""ok""${NC}"
-  fi
+  # if [[ ! -f "${CONFIG_DIR}/cve-database.db" ]]; then
+  #   echo -e "${ORANGE}""not ok""${NC}"
+  #   echo -e "${ORANGE}""    Missing SQLite CVE database updates - Check update instructions""${NC}"
+  # else
+  #   echo -e "${GREEN}""ok""${NC}"
+  # fi
 
   if [[ "${IN_DOCKER}" -eq 0 ]]; then
     print_ln "no_log"

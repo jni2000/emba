@@ -30,6 +30,7 @@ services:
     build: .
     # /dev is needed for the system emulator (L10)
     volumes:
+        - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
         - ${FIRMWARE}/:/firmware:ro
         - ${LOG}/:/logs
         - ${EMBA}/:/emba:ro
@@ -64,6 +65,7 @@ services:
       - /var/tmp
       - /var/lock
     volumes:
+        - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
         - ${FIRMWARE}/:/firmware:ro
         - ${LOG}/:/logs
         - ${EMBA}/:/emba:ro
