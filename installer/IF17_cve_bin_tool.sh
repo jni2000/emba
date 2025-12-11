@@ -86,7 +86,7 @@ IF17_cve_bin_tool() {
         fi
 
         echo "[*] Updating CVE database"
-        python3 ./cve_bin_tool/cli.py --update now -n json-mirror || true
+        # python3 ./cve_bin_tool/cli.py --update now -n json-mirror || true
         # testing db update
         python3 ./cve_bin_tool/cli.py -i ./cve_bin_tool_health_check.csv --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o /tmp/cve_bin_tool_health_check_results || true
 
