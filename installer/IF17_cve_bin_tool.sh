@@ -45,7 +45,7 @@ IF17_cve_bin_tool() {
 	git clone https://github.com/jni2000/cve-bin-tool.git external/cve-bin-tool
 	## git clone https://github.com/intel/cve-bin-tool.git external/cve-bin-tool
         cd external/cve-bin-tool || ( echo "Could not install EMBA component cve-bin-tool" && exit 1 )
-	# git checkout v3.4
+	git checkout jni-extractor-fix 
         pip install -U -r requirements.txt
         python3 -m pip install -e .
 
@@ -59,8 +59,7 @@ IF17_cve_bin_tool() {
 
         if ! [[ -d "${HOME}"/.cache/cve-bin-tool ]]; then
 	  echo "[*] .cache/cve-bin-tool not found!"
-	  exit 1
-          # mkdir "${HOME}"/.cache/cve-bin-tool
+          mkdir "${HOME}"/.cache/cve-bin-tool
         fi
 
         if [[ "${GH_ACTION}" -eq 1 ]]; then
@@ -86,7 +85,7 @@ IF17_cve_bin_tool() {
         fi
 
         echo "[*] Updating CVE database"
-        python3 ./cve_bin_tool/cli.py --update now -n json-mirror || true
+        # python3 ./cve_bin_tool/cli.py --update now -n json-mirror || true
         # testing db update
         python3 ./cve_bin_tool/cli.py -i ./cve_bin_tool_health_check.csv --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o /tmp/cve_bin_tool_health_check_results || true
 
