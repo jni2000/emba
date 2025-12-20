@@ -23,7 +23,7 @@ export HTML=1
 export QEMULATION=1
 
 # disable yara tests (s110)
-export YARA=1
+export YARA=0
 
 # extended binary tests are now only testing non-linux binaries. With this mechanism we can enable
 # it in the default profile.
@@ -35,9 +35,7 @@ export MAX_EXT_CHECK_BINS=15
 export VEX_METRICS=1
 
 # the following modules are long running modules which are disabled in the default profile
-# export MODULE_BLACKLIST+=( "S10_binaries_basic_check" "S15_radare_decompile_checks" "S99_grepit" "S110_yara_check" "F20_vul_aggregator" )
-export MODULE_BLACKLIST+=( "P60_deep_extractor" "S02_UEFI_FwHunt" "S05_firmware_details" "S07_bootloader_check" "S09_firmware_base_version_check" "S04_windows_basic_analysis" "S100_command_inj_check" "S106_deep_key_search" "S107_deep_password_search" "S108_stacs_password_search" "S109_jtr_local_pw_cracking" "S12_binary_protection" "S13_weak_func_check" "S14_weak_func_radare_check" "S17_cwe_checker" "S18_capa_checker" "S19_apk_check" "S20_shell_check" "S21_python_check" "S115_usermode_emulator" "S116_qemu_version_detection" "S118_busybox_verifier" "S22_php_check" "S23_lua_check" "S27_perl_check" "S35_http_file_check" "S40_weak_perm_check" "S45_pass_file_check" "S50_authentication_check" "S55_history_file_check" "S60_cert_file_check" "S65_config_file_check" "S75_network_check" "S80_cronjob_check" "S85_ssh_check" "S90_mail_check" "S95_interesting_files_check" "L25_web_checks" "S10_binaries_basic_check" "S15_radare_decompile_checks" "S16_ghidra_decompile_checks" "S99_grepit" "F20_vul_aggregator")
-# export MODULE_BLACKLIST+=( "P60_deep_extractor" "S116_qemu_version_detection" "S118_busybox_verifier" "L25_web_checks" "S15_radare_decompile_checks" "S16_ghidra_decompile_checks" "S99_grepit")
+export MODULE_BLACKLIST+=( "S10_binaries_basic_check" "S15_radare_decompile_checks" "S99_grepit" "S110_yara_check" "F20_vul_aggregator" )
 
 # enable silent mode and status bar
 export DISABLE_STATUS_BAR=0

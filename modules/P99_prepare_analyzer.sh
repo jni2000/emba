@@ -52,6 +52,7 @@ P99_prepare_analyzer() {
   # The following code is just in case we have not already created our P99_CSV_LOG file
   local lFILES_ARR=()
   local lBINARY=""
+
   if [[ ! -f "${P99_CSV_LOG}" ]]; then
     print_output "[-] INFO: No ${P99_CSV_LOG} log file available ... trying to create it now"
     mapfile -t lFILES_ARR < <(find "${LOG_DIR}/firmware" -type f)
@@ -62,6 +63,7 @@ P99_prepare_analyzer() {
       local lTMP_PID="$!"
       store_kill_pids "${lTMP_PID}"
       lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+      max_pids_protection "${MAX_MOD_THREADS}" lWAIT_PIDS_P99_ARR
     done
     wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
   fi
