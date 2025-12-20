@@ -323,11 +323,23 @@ write_csv_log() {
 write_csv_log_to_path() {
   local lCSV_LOG="${1:-}"
   local lSOURCE_MODULE="${2:-}"
+  local lLOCK_FILE=""
   shift 2
   local lCSV_ITEMS=("$@")
 
+  if [[ -z "${lLOCK_FILE}" ]]; then
+    lLOCK_FILE="${lCSV_LOG}.lock"
+  fi
+
+  # Ensure lock file exists (so flock always has something to lock on)
+  : >> "${lLOCK_FILE}" 2>/dev/null || true
+
   # shellcheck disable=SC2005
-  echo "$(printf '%s;%s;' "${lSOURCE_MODULE}" "${lCSV_ITEMS[@]}" && printf '\n')"  >> "${lCSV_LOG}" || true
+  # Atomic write under lock (FD 200 points to lock file)
+  {
+    flock -x 200
+    echo "$(printf '%s;%s;' "${lSOURCE_MODULE}" "${lCSV_ITEMS[@]}" && printf '\n')"  >> "${lCSV_LOG}" || true
+  } 200>>"${lLOCK_FILE}" || true
 }
 
 
