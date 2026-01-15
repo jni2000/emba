@@ -45,7 +45,7 @@ F17_cve_bin_tool() {
   # cve-bin-tool "${FIRMWARE_PATH_BAK}" --offline --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/cve-bin-tool-sbom.json" > "${LOG_PATH_MODULE}/cve-bin-tool-sbom.log"
   print_output "[*] cve-bin-tool scan of ${FIRMWARE_PATH_BAK} starting ..." "no_log"
   local lCVE_BIN_TOOL="/external/cve-bin-tool/cve_bin_tool/cli.py"
-  python3 "${lCVE_BIN_TOOL}" "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv -o "${LOG_PATH_MODULE}/cve-bin-tool.csv" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>&1 || true
+  python3 "${lCVE_BIN_TOOL}" "${FIRMWARE_PATH_BAK}" --offline -l debug --detailed -f csv -o "${LOG_PATH_MODULE}/cve-bin-tool.csv" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>&1 || true
   # cve-bin-tool "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv -o "${LOG_PATH_MODULE}/cve-bin-tool.csv" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>&1 || true
   print_output "[*] cve-bin-tool scan of ${FIRMWARE_PATH_BAK} finished ..." "no_log"
   
@@ -534,7 +534,7 @@ cve_bin_tool_threader() {
 
   print_output "[*] cve-bin-tool scan SBOM ${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" "no_log"
 
-  python3 "${lCVE_BIN_TOOL}" -i "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" -l debug --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o "${LOG_PATH_MODULE}/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}" || true
+  python3 "${lCVE_BIN_TOOL}" -i "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" -l debug --disable-version-check --disable-validation-check --no-0-cve-report --offline --detailed -f csv -o "${LOG_PATH_MODULE}/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}" || true
 
   if [[ -f "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" ]]; then
     rm "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" || true
