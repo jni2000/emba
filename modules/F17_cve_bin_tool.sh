@@ -41,11 +41,21 @@ F17_cve_bin_tool() {
   mkdir "${LOG_PATH_MODULE}/json/" || true
   mkdir "${LOG_PATH_MODULE}/cve_sum/" || true
   mkdir "${LOG_PATH_MODULE}/exploit/" || true
+  mkdir "${LOG_PATH_MODULE}/../sbom-report" || true
 
   # cve-bin-tool "${FIRMWARE_PATH_BAK}" --offline --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/cve-bin-tool-sbom.json" > "${LOG_PATH_MODULE}/cve-bin-tool-sbom.log"
   print_output "[*] cve-bin-tool scan of ${FIRMWARE_PATH_BAK} starting ..." "no_log"
   local lCVE_BIN_TOOL="/external/cve-bin-tool/cve_bin_tool/cli.py"
-  python3 "${lCVE_BIN_TOOL}" "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv -o "${LOG_PATH_MODULE}/cve-bin-tool.csv" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>&1 || true
+  python3 "${lCVE_BIN_TOOL}" "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv,json -o "${LOG_PATH_MODULE}/cve-bin-tool" --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/../sbom-report/sbom_cyclonedx.json" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>"${LOG_PATH_MODULE}/cve-bin-tool.err"
+  
+  lEXIT_CODE=$?
+  
+  if [[ ${lEXIT_CODE} -ge 2 ]]; then
+    echo "error ${lEXIT_CODE}" > "${LOG_PATH_MODULE}/cve-bin-tool.status"
+  else
+    echo "done" > "${LOG_PATH_MODULE}/cve-bin-tool.status"
+  fi
+  
   # cve-bin-tool "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv -o "${LOG_PATH_MODULE}/cve-bin-tool.csv" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>&1 || true
   print_output "[*] cve-bin-tool scan of ${FIRMWARE_PATH_BAK} finished ..." "no_log"
   
