@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -31,7 +31,7 @@ P20_foscam_decryptor() {
     local lEXTRACTION_FILE="${LOG_DIR}"/firmware/firmware_foscam_dec.bin
 
     foscam_enc_extractor "${FIRMWARE_PATH}" "${lEXTRACTION_FILE}"
-    if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}" ; then
+    if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}"; then
       lNEG_LOG=1
     fi
     module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
@@ -65,7 +65,7 @@ foscam_enc_extractor() {
     print_output "[*] Testing FOSCAM decryption key ${ORANGE}${l_FOSCAM_KEY}${NC}."
     # shellcheck disable=SC2086
     # nosemgrep
-    openssl enc -d -aes-128-cbc -md md5 -k ${l_FOSCAM_KEY} -in "${lFOSCAM_ENC_PATH_}" > "${lEXTRACTION_FILE_}" || true
+    openssl enc -d -aes-128-cbc -md md5 -k ${l_FOSCAM_KEY} -in "${lFOSCAM_ENC_PATH_}" >"${lEXTRACTION_FILE_}" || true
 
     if [[ -f "${lEXTRACTION_FILE_}" ]]; then
       lFOSCAM_FILE_CHECK=$(file "${lEXTRACTION_FILE_}")
@@ -172,7 +172,14 @@ foscam_ubi_extractor() {
     lUBI_FS_TARGET=$(find "${lEXTRACTION_DIR_%\/}/${lUBI_DEV}" -name ubifs)
     if [[ -f "${lUBI_FS_TARGET}" ]]; then
       # unblobber "${lUBI_FS_TARGET}" "${lEXTRACTION_DIR_%\/}_unblob_extracted" 0
-      binwalker_matryoshka "${lUBI_FS_TARGET}" "${lEXTRACTION_DIR_%\/}_binwalk_extracted"
+      local lEXTRACTION_FILE_NAME=""
+      lEXTRACTION_FILE_NAME="$(basename "${lUBI_FS_TARGET}")"
+      local lBINWALK_LOG_FILE="${LOG_PATH_MODULE}/binwalk-${lEXTRACTION_FILE_NAME}.log"
+      binwalker_matryoshka "${lUBI_FS_TARGET}" "${lEXTRACTION_DIR_%\/}_binwalk_extracted" "${lBINWALK_LOG_FILE}"
+
+      if [[ -f "${lBINWALK_LOG_FILE}" ]]; then
+        print_output "[+] Binwalk extraction output for ${lEXTRACTION_FILE_NAME}" "" "${lBINWALK_LOG_FILE}"
+      fi
 
       print_output "[*] Checking ${lEXTRACTION_DIR_%\/}_binwalk_extracted for files and directories"
       mapfile -t lFILES_FOSCAM_UBI_ARR < <(find "${lEXTRACTION_DIR_%\/}_binwalk_extracted" -type f ! -name "*.raw")
@@ -180,11 +187,10 @@ foscam_ubi_extractor() {
       print_output "[*] Extracted ${ORANGE}${#lFILES_FOSCAM_UBI_ARR[@]}${NC} files from the firmware image."
       print_output "[*] Populating backend data for ${ORANGE}${#lFILES_FOSCAM_UBI_ARR[@]}${NC} files ... could take some time" "no_log"
 
-      for lBINARY in "${lFILES_FOSCAM_UBI_ARR[@]}" ; do
+      for lBINARY in "${lFILES_FOSCAM_UBI_ARR[@]}"; do
         binary_architecture_threader "${lBINARY}" "P20_foscam_decryptor" &
         local lTMP_PID="$!"
-        store_kill_pids "${lTMP_PID}"
-        lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+        lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
       done
       wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
 

@@ -18406,6 +18406,7 @@ bash.1.gz
 bash_5.0-6ubuntu1.1_amd64.deb
 bashansi.h
 bash.bash_logout
+bash.bash
 bash.bashrc
 bashbug
 bashbug.1.gz

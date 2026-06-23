@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -25,8 +25,11 @@ ID1_ubuntu_os() {
     print_tool_info "notification-daemon" 1
     print_tool_info "dbus" 1
     print_tool_info "dbus-x11" 1
-    # To using ubi and nandsim with modprobe, the linux-modules-extra package must be installed. (Ubuntu 22.04)
-    print_tool_info "linux-modules-extra-$(uname -r)" 1
+
+    if [[ "${WSL}" -ne 1 ]]; then
+      # To using ubi and nandsim with modprobe, the linux-modules-extra package must be installed. (Ubuntu 22.04)
+      print_tool_info "linux-modules-extra-$(uname -r)" 1
+    fi
 
     # is not available in Ubuntu 24.04 -> need to check on this:
     # print_tool_info "libnotify-cil-dev" 1
@@ -41,9 +44,9 @@ ID1_ubuntu_os() {
     apt-get install "${INSTALL_APP_LIST[@]}" -y --no-install-recommends
 
     if ! [[ -f "/usr/share/dbus-1/services/org.freedesktop.Notifications.service" ]] && [[ -f "/usr/lib/notification-daemon/notification-daemon" ]]; then
-      echo "[D-BUS Service]" > /usr/share/dbus-1/services/org.freedesktop.Notifications.service
-      echo "Name=org.freedesktop.Notifications" >> /usr/share/dbus-1/services/org.freedesktop.Notifications.service
-      echo "Exec=/usr/lib/notification-daemon/notification-daemon" >> /usr/share/dbus-1/services/org.freedesktop.Notifications.service
+      echo "[D-BUS Service]" >/usr/share/dbus-1/services/org.freedesktop.Notifications.service
+      echo "Name=org.freedesktop.Notifications" >>/usr/share/dbus-1/services/org.freedesktop.Notifications.service
+      echo "Exec=/usr/lib/notification-daemon/notification-daemon" >>/usr/share/dbus-1/services/org.freedesktop.Notifications.service
     fi
 
     if [[ "${WSL}" -eq 1 ]]; then
@@ -54,12 +57,10 @@ ID1_ubuntu_os() {
 
       curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null
 
       apt-get update
       apt-get install docker-ce -y
     fi
   fi
 }
-
-

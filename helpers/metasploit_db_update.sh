@@ -3,7 +3,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -30,7 +30,7 @@ MSF_MOD_PATH="${1:-}"
 ## Color definition
 GREEN="\033[0;32m"
 ORANGE="\033[0;33m"
-NC="\033[0m"  # no color
+NC="\033[0m" # no color
 
 if ! [[ -d "${EMBA_CONFIG_PATH}" ]]; then
   echo "[-] No EMBA config directory found! Please start this crawler from the EMBA directory"
@@ -43,7 +43,7 @@ if ! [[ -d "${MSF_MOD_PATH}" ]]; then
 fi
 
 if [[ -f "${MSF_DB_PATH}" ]]; then
-  MSF_EXPLOIT_ENTRIES_INIT=$(wc -l < "${MSF_DB_PATH}")
+  MSF_EXPLOIT_ENTRIES_INIT=$(wc -l <"${MSF_DB_PATH}")
   echo -e "${GREEN}[*] Metasploit exploit database has ${ORANGE}${MSF_EXPLOIT_ENTRIES_INIT}${GREEN} exploit entries (before update).${NC}"
 fi
 
@@ -53,8 +53,8 @@ fi
 
 echo "[*] Building the Metasploit exploit database"
 # search all ruby files in the metasploit directory and create a temporary file with the module path and CVE:
-find "${MSF_MOD_PATH}" -type f -iname "*.rb" -exec grep -a -H -E -o "CVE', '[0-9]{4}-[0-9]+" {} \; | sed "s/', '/-/g" \
-  | sed "s@${MSF_MOD_PATH}@@"| sort > "${MSF_DB_PATH}"
+find "${MSF_MOD_PATH}" -type f -iname "*.rb" -exec grep -a -H -E -o "CVE', '[0-9]{4}-[0-9]+" {} \; | sed "s/', '/-/g" |
+  sed "s@${MSF_MOD_PATH}@@" | sort >"${MSF_DB_PATH}"
 
 # Validate that the output file was created and is not empty
 if [[ ! -f "${MSF_DB_PATH}" ]] || [[ ! -s "${MSF_DB_PATH}" ]]; then
@@ -62,5 +62,5 @@ if [[ ! -f "${MSF_DB_PATH}" ]] || [[ ! -s "${MSF_DB_PATH}" ]]; then
   exit 1
 fi
 
-MSF_EXPLOIT_ENTRIES=$(wc -l < "${MSF_DB_PATH}")
+MSF_EXPLOIT_ENTRIES=$(wc -l <"${MSF_DB_PATH}")
 echo -e "${GREEN}[*] Metasploit exploit database now has ${ORANGE}${MSF_EXPLOIT_ENTRIES}${GREEN} exploit entries (after update).${NC}"

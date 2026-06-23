@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -36,7 +36,7 @@ chmod +x "${ROOT_DIR}"/busybox
 echo "[*] Identifying possible executable files"
 mapfile -t POSSIBLE_ELFS < <(find "${ROOT_DIR}" -type f ! -name "*.raw" -exec file {} \; | grep "ELF\|executable" | cut -d: -f1)
 mapfile -t POSSIBLE_SH < <(find "${ROOT_DIR}" -type f -name "*.sh")
-POSSIBLE_EXES_ARR=( "${POSSIBLE_ELFS[@]}" "${POSSIBLE_SH[@]}" )
+POSSIBLE_EXES_ARR=("${POSSIBLE_ELFS[@]}" "${POSSIBLE_SH[@]}")
 
 for POSSIBLE_EXE in "${POSSIBLE_EXES_ARR[@]}"; do
   [[ -x "${POSSIBLE_EXE}" ]] && continue

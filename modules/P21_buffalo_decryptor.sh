@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -30,7 +30,7 @@ P21_buffalo_decryptor() {
 
     buffalo_enc_extractor "${FIRMWARE_PATH}" "${lEXTRACTION_FILE}"
 
-    if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}" ; then
+    if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}"; then
       lNEG_LOG=1
     fi
     module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
@@ -40,6 +40,10 @@ P21_buffalo_decryptor() {
 buffalo_enc_extractor() {
   local lBUFFALO_ENC_PATH_="${1:-}"
   local lEXTRACTION_FILE_="${2:-}"
+
+  local lEXTRACTION_FILE_NAME=""
+  lEXTRACTION_FILE_NAME="$(basename "${lEXTRACTION_FILE_}")"
+
   local lBUFFALO_FILE_CHECK=""
 
   local lFILES_BUFFALO_ARR=()
@@ -96,21 +100,25 @@ buffalo_enc_extractor() {
       print_ln
       print_output "[*] Firmware file details: ${ORANGE}$(file "${lEXTRACTION_FILE_}")${NC}"
 
-      binwalker_matryoshka "${lEXTRACTION_FILE_}" "${lEXTRACTION_FILE/\.bin}_binwalk_extracted"
+      local lBINWALK_LOG_FILE="${LOG_PATH_MODULE}/binwalk-${lEXTRACTION_FILE_NAME}.log"
+      binwalker_matryoshka "${lEXTRACTION_FILE_}" "${lEXTRACTION_FILE/\.bin/}_binwalk_extracted" "${lBINWALK_LOG_FILE}"
 
-      print_output "[*] Checking ${lEXTRACTION_FILE/\.bin}_binwalk_extracted for files and directories"
-      if [[ -d "${lEXTRACTION_FILE/\.bin}_binwalk_extracted" ]]; then
-        mapfile -t lFILES_BUFFALO_ARR < <(find "${lEXTRACTION_FILE/\.bin}_binwalk_extracted" -type f ! -name "*.raw")
+      if [[ -f "${lBINWALK_LOG_FILE}" ]]; then
+        print_output "[+] Binwalk extraction output for ${lEXTRACTION_FILE_NAME}" "" "${lBINWALK_LOG_FILE}"
+      fi
+
+      print_output "[*] Checking ${lEXTRACTION_FILE/\.bin/}_binwalk_extracted for files and directories"
+      if [[ -d "${lEXTRACTION_FILE/\.bin/}_binwalk_extracted" ]]; then
+        mapfile -t lFILES_BUFFALO_ARR < <(find "${lEXTRACTION_FILE/\.bin/}_binwalk_extracted" -type f ! -name "*.raw")
         print_ln
         print_output "[*] Extracted ${ORANGE}${#lFILES_BUFFALO_ARR[@]}${NC} files from the firmware image."
         print_output "[*] Populating backend data for ${ORANGE}${#lFILES_BUFFALO_ARR[@]}${NC} files ... could take some time" "no_log"
       fi
 
-      for lBINARY in "${lFILES_BUFFALO_ARR[@]}" ; do
+      for lBINARY in "${lFILES_BUFFALO_ARR[@]}"; do
         binary_architecture_threader "${lBINARY}" "P21_buffalo_decryptor" &
         local lTMP_PID="$!"
-        store_kill_pids "${lTMP_PID}"
-        lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+        lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
       done
       wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
 
@@ -127,4 +135,3 @@ buffalo_enc_extractor() {
     print_output "[-] Decryption of Buffalo firmware file failed"
   fi
 }
-

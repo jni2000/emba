@@ -3,7 +3,7 @@
 # EMBA - EMBEDDED LINUX ANALYZER
 #
 # Copyright 2020-2023 Siemens AG
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -40,30 +40,30 @@ I01_default_apps_host() {
   print_tool_info "python3-pip" 1
   print_pip_info "requests"
 
-  if [[ "${LIST_DEP}" -eq 1 ]] ; then
+  if [[ "${LIST_DEP}" -eq 1 ]]; then
     ANSWER=("n")
   else
     echo -e "\\n""${MAGENTA}""${BOLD}""These applications will be installed/updated!""${NC}"
     ANSWER=("y")
   fi
   case ${ANSWER:0:1} in
-    y|Y )
-      echo
-      if [[ ${#INSTALL_APP_LIST[@]} -gt 0 ]]; then
-        if [[ "${RHEL_OS}" -eq 1 ]]; then
-          dnf install -y "${INSTALL_APP_LIST[@]}"
-        else
-          apt-get install "${INSTALL_APP_LIST[@]}" -y
-        fi
+  y | Y)
+    echo
+    if [[ ${#INSTALL_APP_LIST[@]} -gt 0 ]]; then
+      if [[ "${RHEL_OS}" -eq 1 ]]; then
+        dnf install -y "${INSTALL_APP_LIST[@]}"
+      else
+        apt-get install "${INSTALL_APP_LIST[@]}" -y
       fi
-      pip_install "requests" "-U"
+    fi
+    pip_install "requests" "-U"
 
-      if ! command -v "${DOCKER_COMPOSE[@]}" > /dev/null; then
-        echo "Installing ${DOCKER_COMPOSE[*]} manually:"
-        # install docker-compose manually:
-        curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-      fi
+    if ! command -v "${DOCKER_COMPOSE[@]}" >/dev/null; then
+      echo "Installing ${DOCKER_COMPOSE[*]} manually:"
+      # install docker-compose manually:
+      curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      chmod +x /usr/local/bin/docker-compose
+    fi
 
     ;;
   esac

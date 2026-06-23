@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 # Copyright 2020-2023 Siemens AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
@@ -16,6 +16,10 @@
 
 # Description: Multiple useful helpers
 
+# set DEBUG to 1 to enable further debug messages
+: "${DEBUG:=0}"
+export DEBUG
+
 run_web_reporter_mod_name() {
   local lMOD_NAME="${1:-}"
   local lLOG_FILES_ARR=()
@@ -28,7 +32,9 @@ run_web_reporter_mod_name() {
       if [[ -f "${lLOG_FILE}" ]]; then
         lMOD_NAME=$(basename -s .txt "${lLOG_FILE}")
         generate_report_file "${lLOG_FILE}"
-        sed -i -E '/^\[REF\]|\[ANC\]|\[LOV\].*/d' "${lLOG_FILE}"
+        if [[ "${DEBUG:-0}" -ne 1 ]]; then
+          sed -i -E '/^\[REF\]|\[ANC\]|\[LOV\].*/d' "${lLOG_FILE}"
+        fi
       else
         print_error "[-] Some error occured during web report building for ${lLOG_FILE}"
       fi
@@ -36,22 +42,59 @@ run_web_reporter_mod_name() {
   fi
 }
 
+# simple markdown to EMBA log parser
+# Parameter 1: markdown file
+# Parameter 2: EMBA log file to create and log to
+# Parameter 3: How many # symbols are used for the first headline -> module_title
+parse_markdown_to_emba_txt() {
+  local lMD_LOG="${1:-}"
+  local lEMBA_TXT_LOG="${2:-}"
+  # how many # signs are used for the first headline
+  local lHEADLINE_STARTER="${3:-1}"
+  [[ -z "${lEMBA_TXT_LOG}" ]] && lEMBA_TXT_LOG="${lMD_LOG//\.md/\.txt}"
+  [[ ! -f "${lEMBA_TXT_LOG}" ]] && touch "${lEMBA_TXT_LOG}"
+
+  local lMD_LINE=""
+  local lSTORED_IFS="${IFS}"
+
+  IFS='' # nosemgrep
+  while read -r lMD_LINE; do
+    if [[ "${lMD_LINE}" =~ ^#{$((lHEADLINE_STARTER + 1))}.* ]]; then
+      # other headlines -> sub-module-titles
+      # remove the # signs
+      lMD_LINE="${lMD_LINE//#/}"
+      lMD_LINE="${lMD_LINE#\ }"
+      sub_module_title "${lMD_LINE}" "${lEMBA_TXT_LOG}"
+    elif [[ "${lMD_LINE}" =~ ^#{${lHEADLINE_STARTER}}\ .* ]]; then
+      # main headline
+      # remove the # signs
+      lMD_LINE="${lMD_LINE:${lHEADLINE_STARTER}}"
+      lMD_LINE="${lMD_LINE#\ }"
+      module_title "${lMD_LINE}" "${lEMBA_TXT_LOG}"
+    else
+      lMD_LINE=${lMD_LINE//\*/}
+      write_log "${lMD_LINE}" "${lEMBA_TXT_LOG}"
+    fi
+  done <"${lMD_LOG}"
+  IFS="${lSTORED_IFS}" # nosemgrep
+}
+
 wait_for_pid() {
   local lWAIT_PIDS_ARR=("$@")
   local lPID=""
 
-  # print_output "[*] wait pid protection: ${#lWAIT_PIDS_ARR[@]}"
+  print_debug "[*] wait pid protection: ${#lWAIT_PIDS_ARR[@]}" "no_log"
   for lPID in "${lWAIT_PIDS_ARR[@]}"; do
-    # print_output "[*] wait pid protection: $lPID"
+    print_debug "[*] wait pid protection: ${lPID}" "no_log"
     print_dot
     if ! [[ -e /proc/"${lPID}" ]]; then
       continue
     fi
     while [[ -e /proc/"${lPID}" ]]; do
-      # print_output "[*] wait pid protection - running pid: $lPID"
+      # print_debug "[*] wait pid protection - running pid: ${lPID}" "no_log"
       print_dot
       # if S115 is running we have to kill old qemu processes
-      if [[ -f "${LOG_DIR}"/"${MAIN_LOG_FILE}" ]] && [[ $(grep -i -c S115_ "${LOG_DIR}"/"${MAIN_LOG_FILE}") -gt 0 && -n "${QRUNTIME}" ]]; then
+      if [[ -f "${LOG_DIR}/${MAIN_LOG_FILE}" ]] && [[ $(grep -i -c S115_ "${LOG_DIR}/${MAIN_LOG_FILE}") -gt 0 && -v QRUNTIME ]]; then
         killall -9 --quiet --older-than "${QRUNTIME}" -r .*qemu-.*-sta.* || true
       fi
     done
@@ -69,10 +112,10 @@ max_pids_protection() {
     local lTEMP_PIDS_ARR=()
     # check for really running PIDs and re-create the array
     for lPID in "${lrWAIT_PIDS_ARR[@]}"; do
-      # print_output "[*] max pid protection: ${#lrWAIT_PIDS_ARR[@]}"
+      print_debug "[*] max pid protection: ${#lrWAIT_PIDS_ARR[@]}" "no_log"
       if [[ -e /proc/"${lPID}" ]]; then
         if ! grep -q "State:.*zombie.*" "/proc/${lPID}/status" 2>/dev/null; then
-          lTEMP_PIDS_ARR+=( "${lPID}" )
+          lTEMP_PIDS_ARR+=("${lPID}")
         fi
       fi
     done
@@ -81,7 +124,7 @@ max_pids_protection() {
       killall -9 --quiet --older-than "${QRUNTIME}" -r .*qemu.*sta.* || true
     fi
 
-    # print_output "[!] really running pids: ${#lTEMP_PIDS_ARR[@]}"
+    print_debug "[!] really running pids: ${#lTEMP_PIDS_ARR[@]}" "no_log"
 
     # recreate the arry with the current running PIDS
     lrWAIT_PIDS_ARR=()
@@ -92,7 +135,7 @@ max_pids_protection() {
 }
 
 check_emba_ended() {
-  if grep -q "Test ended" "${LOG_DIR}""/""${MAIN_LOG_FILE}"; then
+  if grep -q "Test ended" "${LOG_DIR}/${MAIN_LOG_FILE}"; then
     # EMBA is already finished
     return 0
   fi
@@ -358,17 +401,17 @@ cleaner() {
   if [[ "${IN_DOCKER}" -eq 0 ]] && [[ -n "${QUEST_CONTAINER}" ]]; then
     if [[ "$(docker container inspect -f '{{.State.Status}}' "${QUEST_CONTAINER}" 2>/dev/null)" == "running" ]]; then
       print_output "[*] $(print_date) - Stopping Quest Container ..." "no_log"
-      docker kill "${QUEST_CONTAINER}" 2>/dev/null
+      docker kill "${QUEST_CONTAINER}" 2>/dev/null || true
     fi
   fi
   if [[ "${IN_DOCKER}" -eq 0 ]] && [[ -n "${MAIN_CONTAINER}" ]]; then
     if [[ "$(docker container inspect -f '{{.State.Status}}' "${MAIN_CONTAINER}" 2>/dev/null)" == "running" ]]; then
       print_output "[*] $(print_date) - Stopping EMBA main Container ..." "no_log"
-      docker kill "${MAIN_CONTAINER}" 2>/dev/null
+      docker kill "${MAIN_CONTAINER}" 2>/dev/null || true
     fi
   fi
   # stop inotifywait on host
-  if [[ "${IN_DOCKER}" -eq 0 ]] && pgrep -f "inotifywait.*${LOG_DIR}.*" &> /dev/null 2>&1; then
+  if [[ "${IN_DOCKER}" -eq 0 ]] && pgrep -f "inotifywait.*${LOG_DIR}.*" &>/dev/null 2>&1; then
     print_output "[*] $(print_date) - Stopping inotify ..." "no_log"
     pkill -f "inotifywait.*${LOG_DIR}.*" >/dev/null || true
   fi
@@ -383,7 +426,7 @@ cleaner() {
     if [[ $(grep -i -c S115 "${LOG_DIR}"/"${MAIN_LOG_FILE}") -eq 1 ]]; then
 
       print_output "[*] $(print_date) - Terminating qemu processes - check it with ps" "no_log"
-      killall -9 --quiet -r .*qemu-.*-sta.* > /dev/null || true
+      killall -9 --quiet -r .*qemu-.*-sta.* >/dev/null || true
       print_output "[*] $(print_date) - Cleaning the emulation environment\\n" "no_log"
       find "${FIRMWARE_PATH_CP}" -xdev -iname "qemu*static" -exec rm {} \; 2>/dev/null || true
       find "${LOG_DIR}/s115_usermode_emulator" -xdev -iname "qemu*static" -exec rm {} \; 2>/dev/null || true
@@ -407,7 +450,7 @@ cleaner() {
 
     if [[ $(grep -i -c S120 "${LOG_DIR}"/"${MAIN_LOG_FILE}") -eq 1 ]]; then
       print_output "[*] $(print_date) - Terminating cwe-checker processes - check it with ps" "no_log"
-      killall -9 --quiet -r .*cwe_checker.* > /dev/null || true
+      killall -9 --quiet -r .*cwe_checker.* >/dev/null || true
     fi
 
     # If SYS_ONLINE is 1 and some qemu system process is running, the live system tester (system mode emulator)
@@ -423,15 +466,15 @@ cleaner() {
   [[ "${IN_DOCKER}" -eq 1 ]] && restore_permissions
 
   if [[ "${IN_DOCKER}" -eq 0 ]]; then
-    pkill -f "tail.*-f ${LOG_DIR}/emba.log" > /dev/null || true
+    pkill -f "tail.*-f ${LOG_DIR}/emba.log" >/dev/null || true
     remove_status_bar
   fi
 
   if [[ "${IN_DOCKER}" -eq 0 ]] && [[ -v K_DOWN_PID ]]; then
-    if ps -p "${K_DOWN_PID}" > /dev/null; then
+    if ps -p "${K_DOWN_PID}" >/dev/null; then
       # kernel downloader is running in a thread on the host and needs to be stopped now
       print_output "[*] $(print_date) - Stopping kernel downloader thread with PID ${K_DOWN_PID}" "no_log"
-      kill "${K_DOWN_PID}" > /dev/null || true
+      kill "${K_DOWN_PID}" >/dev/null || true
     fi
   fi
 
@@ -450,24 +493,26 @@ cleaner() {
     while read -r KILL_PID; do
       if [[ -e /proc/"${KILL_PID}" ]]; then
         print_output "[*] $(print_date) - Stopping EMBA process with PID ${KILL_PID}" "no_log"
-        kill -9 "${KILL_PID}" > /dev/null || true
+        kill -9 "${KILL_PID}" >/dev/null || true
       fi
-    done < "${TMP_DIR}"/EXIT_KILL_PIDS.log
+    done <"${TMP_DIR}"/EXIT_KILL_PIDS.log
   fi
 
   if [[ "${IN_DOCKER}" -eq 1 ]] && [[ -f "${TMP_DIR}"/EXIT_KILL_PIDS_DOCKER.log ]]; then
     while read -r KILL_PID; do
       if [[ -e /proc/"${KILL_PID}" ]]; then
         print_output "[*] $(print_date) - Stopping EMBA process with PID ${KILL_PID} in docker" "no_log"
-        kill -9 "${KILL_PID}" > /dev/null || true
+        kill -9 "${KILL_PID}" >/dev/null || true
       fi
-    done < "${TMP_DIR}"/EXIT_KILL_PIDS_DOCKER.log
+    done <"${TMP_DIR}"/EXIT_KILL_PIDS_DOCKER.log
   fi
 
-
+  if [[ -f "${LOG_DIR}"/print_running_modules.pid ]]; then
+    rm "${LOG_DIR}"/print_running_modules.pid >/dev/null || true
+  fi
   if [[ -f "${LOG_DIR}"/emba_error.log ]]; then
     if ! [[ -s "${LOG_DIR}"/emba_error.log ]]; then
-      rm "${LOG_DIR}"/emba_error.log > /dev/null || true
+      rm "${LOG_DIR}"/emba_error.log >/dev/null || true
     fi
   fi
 
@@ -509,26 +554,26 @@ emba_updater() {
 
   if [[ -d "${EXT_DIR}"/EPSS-data ]]; then
     print_output "[*] EMBA update - EPSS database update" "no_log"
-    cd "${EXT_DIR}"/EPSS-data || ( print_output "[-] WARNING: Can't update EPSS database" "no_log" && exit 1 )
+    cd "${EXT_DIR}"/EPSS-data || (print_output "[-] WARNING: Can't update EPSS database" "no_log" && exit 1)
     if [[ -d ./.git ]]; then
       timeout "${lUPDATE_TIMEOUT}" git pull
     else
       print_output "[-] WARNING: Can't update EPSS database" "no_log"
     fi
-    cd "${lHOME_DIR}" || ( print_output "[-] WARNING: Can't update EPSS database" "no_log" && exit 1 )
+    cd "${lHOME_DIR}" || (print_output "[-] WARNING: Can't update EPSS database" "no_log" && exit 1)
   else
     print_output "[-] WARNING: Can't update EPSS database" "no_log"
   fi
 
   if [[ -d "${NVD_DIR}" ]]; then
     print_output "[*] EMBA update - CVE database update" "no_log"
-    cd "${NVD_DIR}" || ( print_output "[-] WARNING: Can't update CVE database" "no_log" && exit 1 )
+    cd "${NVD_DIR}" || (print_output "[-] WARNING: Can't update CVE database" "no_log" && exit 1)
     if [[ -d ./.git ]]; then
       timeout "${lUPDATE_TIMEOUT}" git pull
     else
       print_output "[-] WARNING: Can't update CVE database" "no_log"
     fi
-    cd "${lHOME_DIR}" || ( print_output "[-] WARNING: Can't update CVE database" "no_log" && exit 1 )
+    cd "${lHOME_DIR}" || (print_output "[-] WARNING: Can't update CVE database" "no_log" && exit 1)
   else
     print_output "[-] WARNING: Can't update CVE database" "no_log"
   fi
@@ -544,7 +589,7 @@ emba_updater() {
 # this means the EMBA module was loaded
 function_exists() {
   local lFCT_TO_CHECK="${1:-}"
-  declare -f -F "${lFCT_TO_CHECK}" > /dev/null
+  declare -f -F "${lFCT_TO_CHECK}" >/dev/null
   return $?
 }
 
@@ -580,7 +625,7 @@ backup_var() {
   local lVAR_VALUE="${2:-}"
   local lBACKUP_FILE="${LOG_DIR}""/backup_vars.log"
 
-  echo "export ${lVAR_NAME}=\"${lVAR_VALUE}\"" >> "${lBACKUP_FILE}"
+  echo "export ${lVAR_NAME}=\"${lVAR_VALUE}\"" >>"${lBACKUP_FILE}"
 }
 
 module_wait() {
@@ -604,7 +649,7 @@ module_wait() {
     if [[ -f "${LOG_DIR}"/emba_error.log ]]; then
       if grep -q "${lMODULE_TO_WAIT}" "${LOG_DIR}"/emba_error.log; then
         print_output "[-] $(print_date) - WARNING: Module to wait for is probably crashed and will never end. Check the EMBA error log ${LOG_DIR}/emba_error.log" "main"
-        cat "${LOG_DIR}"/emba_error.log >> "${MAIN_LOG}"
+        cat "${LOG_DIR}"/emba_error.log >>"${MAIN_LOG}"
         return
       fi
     fi
@@ -615,8 +660,12 @@ module_wait() {
 store_kill_pids() {
   local lPID="${1:-}"
   ! [[ -d "${TMP_DIR}" ]] && mkdir -p "${TMP_DIR}"
-  [[ "${IN_DOCKER}" -eq 0 ]] && echo "${lPID}" >> "${TMP_DIR}"/EXIT_KILL_PIDS.log
-  [[ "${IN_DOCKER}" -eq 1 ]] && echo "${lPID}" >> "${TMP_DIR}"/EXIT_KILL_PIDS_DOCKER.log
+  if [[ "${IN_DOCKER}" -eq 0 ]]; then
+    echo "${lPID}" >>"${TMP_DIR}"/EXIT_KILL_PIDS.log || true
+  fi
+  if [[ "${IN_DOCKER}" -eq 1 ]]; then
+    echo "${lPID}" >>"${TMP_DIR}"/EXIT_KILL_PIDS_DOCKER.log || true
+  fi
   return 0
 }
 
@@ -629,7 +678,7 @@ disk_space_monitor() {
   done
 
   while true; do
-    # print_output "[*] Disk space monitoring active" "no_log"
+    print_debug "[*] Disk space monitoring active" "no_log"
     lFREE_SPACE=$(df --output=avail "${lDDISK}" | awk 'NR==2')
     if [[ "${lFREE_SPACE}" -lt 10000000 ]]; then
       print_ln "no_log"
@@ -668,7 +717,7 @@ safe_logging() {
   ## Force UTF-8 charset
   while read -r lINPUT_; do
     if [[ "${lALT_OUT_}" -eq 1 ]]; then
-      echo "${lINPUT_}" | iconv -c --to-code=UTF-8 >> "${lLOG_FILE_}"
+      echo "${lINPUT_}" | iconv -c --to-code=UTF-8 >>"${lLOG_FILE_}"
     else
       echo "${lINPUT_}" | iconv -c --to-code=UTF-8 | tee -a "${lLOG_FILE_}"
     fi

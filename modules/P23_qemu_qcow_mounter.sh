@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -24,25 +24,24 @@ P23_qemu_qcow_mounter() {
     module_title "Qemu QCOW filesystem extractor"
     pre_module_reporter "${FUNCNAME[0]}"
 
-
     local lEXTRACTION_DIR="${LOG_DIR}"/firmware/qemu_qcow_extractor/
-#    local lFIRMWARE_PATHx=""
+    #    local lFIRMWARE_PATHx=""
 
-#    if [[ "${IN_DOCKER}" -eq 1 ]]; then
-#      # we need rw access to firmware -> in docker container we need to copy
-#      # the firmware to TMP_DIR and use this for extraction
-#      # afterwards we are going to remove this path
-#      cp /firmware "${TMP_DIR}"
-#      lFIRMWARE_PATHx="${TMP_DIR}"/firmware
-#    else
-#      lFIRMWARE_PATHx="${FIRMWARE_PATH}"
-#    fi
+    #    if [[ "${IN_DOCKER}" -eq 1 ]]; then
+    #      # we need rw access to firmware -> in docker container we need to copy
+    #      # the firmware to TMP_DIR and use this for extraction
+    #      # afterwards we are going to remove this path
+    #      cp /firmware "${TMP_DIR}"
+    #      lFIRMWARE_PATHx="${TMP_DIR}"/firmware
+    #    else
+    #      lFIRMWARE_PATHx="${FIRMWARE_PATH}"
+    #    fi
 
     qcow_extractor "${FIRMWARE_PATH}" "${lEXTRACTION_DIR}"
 
-#    if [[ -f "${TMP_DIR}"/firmware ]]; then
-#      rm "${TMP_DIR}"/firmware
-#    fi
+    #    if [[ -f "${TMP_DIR}"/firmware ]]; then
+    #      rm "${TMP_DIR}"/firmware
+    #    fi
 
     if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}"; then
       export FIRMWARE_PATH="${LOG_DIR}"/firmware/
@@ -74,16 +73,16 @@ qcow_extractor() {
   local l7ZIP_BROKEN_LNK_TARGET=""
 
   l7ZIP_LOG_FILE="${LOG_PATH_MODULE}/7z_extraction_$(basename "${lQCOW_PATH}").log"
-  7z x -r -spf -snld -aos -o"${lEXTRACTION_DIR}" "${lQCOW_PATH}" |& tee -a "${l7ZIP_LOG_FILE}"
+  7z x -r -spf -snld -aos -o"${lEXTRACTION_DIR}" "${lQCOW_PATH}" |& tee -a "${l7ZIP_LOG_FILE}" || true
 
-  mapfile -t l7ZIP_BROKEN_LINKS_ARR < <(grep "Dangerous link via another link was ignored" "${l7ZIP_LOG_FILE}")
+  mapfile -t l7ZIP_BROKEN_LINKS_ARR < <(grep "Dangerous link via another link was ignored" "${l7ZIP_LOG_FILE}" || true)
   if [[ "${#l7ZIP_BROKEN_LINKS_ARR[@]}" -gt 0 ]]; then
     print_output "[*] Identified non extracted symlinks - trying to recover them now"
     for l7ZIP_BROKEN_LNK in "${l7ZIP_BROKEN_LINKS_ARR[@]}"; do
       print_output "[*] Trying to recover link: ${ORANGE}${l7ZIP_BROKEN_LNK}${NC}"
       # ERROR: Dangerous link via another link was ignored : lib/ld64-uClibc.so.0 : ld64-uClibc.so.1
       # lib/ld64-uClibc.so.0 : ld64-uClibc.so.1
-      l7ZIP_BROKEN_LNK=${l7ZIP_BROKEN_LNK/ERROR: Dangerous link via another link was ignored : }
+      l7ZIP_BROKEN_LNK=${l7ZIP_BROKEN_LNK/ERROR: Dangerous link via another link was ignored : /}
       # lib/ld64-uClibc.so.0
       l7ZIP_BROKEN_LNK_SOURCE=${l7ZIP_BROKEN_LNK% :*}
       # ld64-uClibc.so.1
@@ -104,8 +103,7 @@ qcow_extractor() {
   for lBINARY in "${lFILES_QCOW_ARR[@]}"; do
     binary_architecture_threader "${lBINARY}" "P23_qemu_qcow_mounter" &
     local lTMP_PID="$!"
-    store_kill_pids "${lTMP_PID}"
-    lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+    lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
   done
   wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
 
@@ -182,7 +180,7 @@ qcow_extractor_nbd_mnt() {
   if [[ "${#lNBD_DEVS_ARR[@]}" -eq 0 ]]; then
     # sometimes we are not able to find the partitions with fdisk -> fallback
     # lNBD_DEVS_ARR+=( "/dev/nbd0" )
-    lNBD_DEVS_ARR+=( "/dev/${lNBD_DEV_NAME}" )
+    lNBD_DEVS_ARR+=("/dev/${lNBD_DEV_NAME}")
   fi
 
   print_ln
@@ -205,8 +203,7 @@ qcow_extractor_nbd_mnt() {
       for lBINARY in "${lFILES_QCOW_ARR[@]}"; do
         binary_architecture_threader "${lBINARY}" "P23_qemu_qcow_mounter" &
         local lTMP_PID="$!"
-        store_kill_pids "${lTMP_PID}"
-        lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+        lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
       done
       wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
 

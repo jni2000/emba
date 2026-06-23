@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -32,7 +32,7 @@ P17_gpg_decompress() {
 
     gpg_decompress_extractor "${FIRMWARE_PATH}" "${lEXTRACTION_FILE}"
 
-    if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}" ; then
+    if [[ -s "${P99_CSV_LOG}" ]] && grep -q "^${FUNCNAME[0]};" "${P99_CSV_LOG}"; then
       lNEG_LOG=1
     fi
     module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
@@ -42,6 +42,9 @@ P17_gpg_decompress() {
 gpg_decompress_extractor() {
   local lGPG_FILE_PATH_="${1:-}"
   local lEXTRACTION_FILE_="${2:-}"
+
+  local lEXTRACTION_FILE_NAME=""
+  lEXTRACTION_FILE_NAME="$(basename "${lEXTRACTION_FILE_}")"
 
   local lFILES_GPG_ARR=()
   local lBINARY=""
@@ -55,7 +58,7 @@ gpg_decompress_extractor() {
   sub_module_title "GPG compressed firmware extractor"
 
   gpg --list-packets "${lGPG_FILE_PATH_}" 2>/dev/null | tee -a "${LOG_FILE}"
-  gpg --decrypt "${lGPG_FILE_PATH_}" > "${lEXTRACTION_FILE_}" || true
+  gpg --decrypt "${lGPG_FILE_PATH_}" >"${lEXTRACTION_FILE_}" || true
 
   print_ln
   if [[ -f "${lEXTRACTION_FILE_}" ]]; then
@@ -64,17 +67,21 @@ gpg_decompress_extractor() {
     backup_var "FIRMWARE_PATH" "${FIRMWARE_PATH}"
     print_ln
     print_output "[*] Firmware file details: ${ORANGE}$(file -b "${lEXTRACTION_FILE_}")${NC}"
-    binwalker_matryoshka "${lEXTRACTION_FILE_}" "${LOG_DIR}"/firmware/firmware_gpg_extracted
+    local lBINWALK_LOG_FILE="${LOG_PATH_MODULE}/binwalk-${lEXTRACTION_FILE_NAME}.log"
+    binwalker_matryoshka "${lEXTRACTION_FILE_}" "${LOG_DIR}"/firmware/firmware_gpg_extracted "${lBINWALK_LOG_FILE}"
+
+    if [[ -f "${lBINWALK_LOG_FILE}" ]]; then
+      print_output "[+] Binwalk extraction output for ${lEXTRACTION_FILE_NAME}" "" "${lBINWALK_LOG_FILE}"
+    fi
 
     mapfile -t lFILES_GPG_ARR < <(find "${LOG_DIR}/firmware/firmware_gpg_extracted" -type f ! -name "*.raw")
     print_output "[*] Extracted ${ORANGE}${#lFILES_GPG_ARR[@]}${NC} files from GPG compressed file."
     print_output "[*] Populating backend data for ${ORANGE}${#lFILES_GPG_ARR[@]}${NC} files ... could take some time" "no_log"
 
-    for lBINARY in "${lFILES_GPG_ARR[@]}" ; do
+    for lBINARY in "${lFILES_GPG_ARR[@]}"; do
       binary_architecture_threader "${lBINARY}" "P17_gpg_decompress" &
       local lTMP_PID="$!"
-      store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+      lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
     done
     wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
 

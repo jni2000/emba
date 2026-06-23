@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -15,7 +15,6 @@
 #
 # Description:  This module identifies Android apk packages and performs a static
 #               vulnerability test with APKHunt: https://github.com/Cyber-Buddy/APKHunt
-
 
 S19_apk_check() {
   module_log_init "${FUNCNAME[0]}"
@@ -58,7 +57,7 @@ apk_checker() {
       apk_checker_helper "${lAPK_FILE}" &
       local lTMP_PID="$!"
       store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_S19_ARR+=( "${lTMP_PID}" )
+      lWAIT_PIDS_S19_ARR+=("${lTMP_PID}")
     else
       apk_checker_helper "${lAPK_FILE}"
     fi
@@ -81,7 +80,7 @@ apk_checker_helper() {
   lAPK_NAME=$(basename -s .apk "${lAPK_FILE}")
 
   print_output "[*] Testing Android apk with APKHunt - ${ORANGE}$(print_path "${lAPK_FILE}")${NC}"
-  go run "${EXT_DIR}"/APKHunt/apkhunt.go -p "${lAPK_FILE}" -l 2>&1 | tee -a "${LOG_PATH_MODULE}/APKHunt-${lAPK_NAME}.txt"
+  go run "${EXT_DIR}"/APKHunt/apkhunt.go -p "${lAPK_FILE}" -l 2>&1 | tee -a "${LOG_PATH_MODULE}/APKHunt-${lAPK_NAME}.txt" || print_error "[-] Failed to analyze apk file ${lAPK_FILE} with apkhunt"
 
   if [[ -f "${LOG_PATH_MODULE}/APKHunt-${lAPK_NAME}.txt" ]]; then
     lAPK_ISSUES=$(grep -c -E "^[0-9]+:" "${LOG_PATH_MODULE}/APKHunt-${lAPK_NAME}.txt" || true)

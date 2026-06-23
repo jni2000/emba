@@ -3,7 +3,7 @@
 # EMBA - EMBEDDED LINUX ANALYZER
 #
 # Copyright 2020-2023 Siemens AG
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -41,11 +41,12 @@ if [[ "${STRICT_MODE}" -eq 1 ]]; then
     echo "Warning - strict mode module not found"
   fi
   load_strict_mode_settings
-  trap 'wickStrictModeFail $? | tee -a /tmp/emba_installer.log' ERR  # The ERR trap is triggered when a script catches an error
+  trap 'wickStrictModeFail $? | tee -a /tmp/emba_installer.log' ERR # The ERR trap is triggered when a script catches an error
 fi
 
 # install docker EMBA
 export IN_DOCKER=0
+export DOCKER_SETUP=0
 # list dependencies
 export LIST_DEP=0
 export FULL=0
@@ -57,10 +58,10 @@ export UBUNTU_OS=0
 export RHEL_OS=0
 export WSL=0
 export GH_ACTION=0
+export SSL_REPOS=0
 if [[ -f /installer/gh_action ]]; then
   export GH_ACTION=1
 fi
-export SSL_REPOS=0
 
 ## Color definition
 export RED="\033[0;31m"
@@ -69,7 +70,7 @@ export ORANGE="\033[0;33m"
 export MAGENTA="\033[0;35m"
 export CYAN="\033[0;36m"
 export BLUE="\033[0;34m"
-export NC="\033[0m"  # no color
+export NC="\033[0m" # no color
 
 ## Attribute definition
 export BOLD="\033[1m"
@@ -78,20 +79,21 @@ echo -e "\\n""${ORANGE}""${BOLD}""EMBA - Embedded Linux Analyzer Installer""${NC
 echo -e "${BOLD}""=================================================================""${NC}"
 
 # import all the installation modules
-mapfile -t INSTALLERS < <(find "${INSTALLER_DIR}" -iname "*.sh" 2> /dev/null)
+mapfile -t INSTALLERS < <(find "${INSTALLER_DIR}" -iname "*.sh" 2>/dev/null)
 INSTALLER_COUNT=0
-for INSTALLER_FILE in "${INSTALLERS[@]}" ; do
+for INSTALLER_FILE in "${INSTALLERS[@]}"; do
   # https://github.com/koalaman/shellcheck/wiki/SC1090
   # shellcheck source=/dev/null
   source "${INSTALLER_FILE}"
-  (( INSTALLER_COUNT+=1 ))
+  ((INSTALLER_COUNT += 1))
 done
 
 echo ""
 echo -e "==> ""${GREEN}""Imported ""${INSTALLER_COUNT}"" installer module files""${NC}"
 echo ""
 
-if [[ "$#" -lt 1 ]] || [[ "$#" -gt 2 ]]; then
+# expect the user to provide at least one argument
+if [[ "$#" -lt 1 ]]; then
   echo -e "${RED}""${BOLD}""Invalid number of arguments""${NC}"
   echo -e "\n\n------------------------------------------------------------------"
   echo -e "If you are going to install EMBA in default mode you can use:"
@@ -101,64 +103,80 @@ if [[ "$#" -lt 1 ]] || [[ "$#" -gt 2 ]]; then
   exit 1
 fi
 
-while getopts CdDfFghlrsc: OPT ; do
+while getopts CdDfFghlrsc: OPT; do
   case ${OPT} in
-    d)
-      export DOCKER_SETUP=1
-      export CVE_SEARCH=0
-      echo -e "${GREEN}${BOLD}Install all dependencies for EMBA in default/docker mode${NC}"
-      ;;
-    D)
-      export IN_DOCKER=1
-      export DOCKER_SETUP=0
-      export CVE_SEARCH=0
-      echo -e "${GREEN}${BOLD}Install EMBA in docker image - used for building a docker image${NC}"
-      ;;
-    f)
-      export FORCE=1
-      echo -e "${GREEN}${BOLD}Forcing install - bypassing multiple checks${NC}"
-      ;;
-    F)
-      export FULL=1
-      export DOCKER_SETUP=0
-      export CVE_SEARCH=1
-      echo -e "${GREEN}${BOLD}Install all dependecies for developer mode${NC}"
-      ;;
-    g)
-      export DOCKER_SETUP=1
-      export GH_ACTION=1
-      export CVE_SEARCH=0
-      echo -e "${GREEN}${BOLD}Install all dependecies for EMBA test via Github actions${NC}"
-      echo -e "${GREEN}${BOLD}This mode is a default installation without populating the CVE-search database${NC}"
-      ;;
-    h)
-      print_help
-      exit 0
-      ;;
-    l)
-      export LIST_DEP=1
-      export CVE_SEARCH=0
-      export DOCKER_SETUP=0
-      echo -e "${GREEN}${BOLD}List all dependecies (Warning: deprecated feature)${NC}"
-      ;;
-    r)
-      export REMOVE=1
-      echo -e "${GREEN}${BOLD}Remove EMBA from the system${NC}"
-      ;;
-    s)
-      export SSL_REPOS=1
-      echo -e "${GREEN}${BOLD}HTTPS repos are used for installation${NC}"
-      ;;
-    c)
-      export CONTAINER="${OPTARG}"
-      ;;
-    *)
-      echo -e "${RED}${BOLD}Invalid option: ${OPT}${NC}"
-      print_help
-      exit 1
-      ;;
+  d)
+    export DOCKER_SETUP=1
+    export CVE_SEARCH=0
+    echo -e "${GREEN}${BOLD}Install all dependencies for EMBA in default/docker mode${NC}"
+    ;;
+  D)
+    export IN_DOCKER=1
+    export DOCKER_SETUP=0
+    export CVE_SEARCH=0
+    echo -e "${GREEN}${BOLD}Install EMBA in docker image - used for building a docker image${NC}"
+    ;;
+  f)
+    export FORCE=1
+    echo -e "${GREEN}${BOLD}Forcing install - bypassing multiple checks${NC}"
+    ;;
+  F)
+    export FULL=1
+    export DOCKER_SETUP=0
+    export CVE_SEARCH=1
+    echo -e "${GREEN}${BOLD}Install all dependencies for developer mode (deprecated and not supported anymore)${NC}"
+    ;;
+  g)
+    export DOCKER_SETUP=1
+    export GH_ACTION=1
+    export CVE_SEARCH=0
+    echo -e "${GREEN}${BOLD}Install all dependecies for EMBA test via Github actions${NC}"
+    echo -e "${GREEN}${BOLD}This mode is a default installation without populating the CVE-search database${NC}"
+    ;;
+  h)
+    print_help
+    exit 0
+    ;;
+  l)
+    export LIST_DEP=1
+    export CVE_SEARCH=0
+    export DOCKER_SETUP=0
+    echo -e "${GREEN}${BOLD}List all dependecies (Warning: deprecated feature)${NC}"
+    ;;
+  r)
+    export REMOVE=1
+    echo -e "${GREEN}${BOLD}Remove EMBA from the system${NC}"
+    ;;
+  s)
+    export SSL_REPOS=1
+    echo -e "${GREEN}${BOLD}HTTPS repos are used for installation${NC}"
+    ;;
+  c)
+    export CONTAINER="${OPTARG}"
+    ;;
+  *)
+    echo -e "${RED}${BOLD}Invalid option: ${OPT}${NC}"
+    print_help
+    exit 1
+    ;;
   esac
 done
+
+# Hard workaround to disable the usage of ssl repos for github actions:
+if [[ "${GH_ACTION}" -eq 1 ]]; then
+  export SSL_REPOS=0
+fi
+
+# make sure the argument combination passed results in a valid install operation
+if [[ ! ("${LIST_DEP}" -eq 1 || "${DOCKER_SETUP}" -eq 1 || "${FULL}" -eq 1 || "${REMOVE}" -eq 1 || "${IN_DOCKER}" -eq 1) ]]; then
+  echo -e "${RED}""${BOLD}""Missing operation""${NC}"
+  echo -e "\n\n------------------------------------------------------------------"
+  echo -e "If you are going to install EMBA in default mode you can use:"
+  echo -e "${CYAN}""     sudo ./installer.sh -d""${NC}"
+  echo -e "------------------------------------------------------------------\n\n"
+  print_help
+  exit 1
+fi
 
 if ! [[ -v CONTAINER ]]; then
   if [[ -f docker-compose.yml ]]; then
@@ -191,16 +209,16 @@ fi
 # distribution check
 if grep -Eq "ID(_LIKE)?=.*(rhel|fedora|rocky|centos)" /etc/os-release 2>/dev/null; then
   RHEL_OS=1
-elif ! grep -Eq "ID(_LIKE)?=(\")?(ubuntu)?( )?(debian)?" /etc/os-release 2>/dev/null ; then
+elif ! grep -Eq "ID(_LIKE)?=(\")?(ubuntu)?( )?(debian)?" /etc/os-release 2>/dev/null; then
   echo -e "\\n""${RED}""EMBA only supports debian based distributions!""${NC}\\n"
   print_help
   exit 1
-elif ! grep -q "kali" /etc/debian_version 2>/dev/null ; then
-  if grep -q "VERSION_ID=\"22.04\"\|VERSION_ID=\"24.04\"" /etc/os-release 2>/dev/null ; then
+elif ! grep -q "kali" /etc/debian_version 2>/dev/null; then
+  if grep -q "VERSION_ID=\"22.04\"\|VERSION_ID=\"24.04\"" /etc/os-release 2>/dev/null; then
     # How to handle sub-versioning ? if grep -q -E "PRETTY_NAME=\"Ubuntu\ 22\.04(\.[0-9]+)?\ LTS\"" /etc/os-release 2>/dev/null ; then
     OTHER_OS=1
     UBUNTU_OS=1
-  elif grep -q "PRETTY_NAME=\"Ubuntu 20.04 LTS\"" /etc/os-release 2>/dev/null ; then
+  elif grep -q "PRETTY_NAME=\"Ubuntu 20.04 LTS\"" /etc/os-release 2>/dev/null; then
     echo -e "\\n""${RED}""EMBA is not fully supported on Ubuntu 20.04 LTS.""${NC}"
     echo -e "${RED}""For EMBA installation you need to update docker-compose manually. See also https://github.com/e-m-b-a/emba/issues/247""${NC}"
     echo -e "\\n""${ORANGE}""Please check the documentation https://github.com/e-m-b-a/emba/wiki/Installation#prerequisites""${NC}"
@@ -235,7 +253,7 @@ if ! grep -q "ssse3" /proc/cpuinfo 2>/dev/null; then
   fi
 fi
 
-if ! [[ ${EUID} -eq 0 ]] && [[ ${LIST_DEP} -eq 0 ]] ; then
+if ! [[ ${EUID} -eq 0 ]] && [[ ${LIST_DEP} -eq 0 ]]; then
   echo -e "\\n""${RED}""Run EMBA installation script with root permissions!""${NC}\\n"
   print_help
   exit 1
@@ -285,8 +303,8 @@ if [[ "${IN_DOCKER}" -eq 0 ]]; then
   fi
 fi
 
-if [[ ${LIST_DEP} -eq 0 ]] ; then
-  if ! [[ -d "external" ]] ; then
+if [[ ${LIST_DEP} -eq 0 ]]; then
+  if ! [[ -d "external" ]]; then
     echo -e "\\n""${ORANGE}""Created external directory: ./external""${NC}"
     mkdir external
     # currently this is needed for full install on Ubuntu
@@ -325,7 +343,7 @@ fi
 create_pipenv "./external/emba_venv"
 activate_pipenv "./external/emba_venv"
 
-if ! command -v docker > /dev/null || ! command -v docker compose > /dev/null ; then
+if ! command -v docker >/dev/null || ! command -v docker compose >/dev/null; then
   if [[ "${RHEL_OS}" -eq 1 ]]; then
     echo "RHEL/Rocky system detected. Installing Docker using dnf..."
     # Install dnf-utils which provides the 'dnf config-manager' command
@@ -336,7 +354,6 @@ if ! command -v docker > /dev/null || ! command -v docker compose > /dev/null ; 
     dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin --allowerasing
     systemctl start docker
     systemctl enable docker
-
 
   # The original logic for Debian-family systems (Debian, Ubuntu, Kali, etc.)
   else
@@ -352,18 +369,18 @@ if ! command -v docker > /dev/null || ! command -v docker compose > /dev/null ; 
     if [[ "${UBUNTU_OS}" -eq 1 ]]; then
       # shellcheck source=/dev/null
       echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${OS} \
-      $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null
     else
       # probably a kali linux
       echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${OS} \
-      bookworm stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      bookworm stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null
     fi
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
 
   export DOCKER_COMPOSE=("docker" "compose")
-elif command -v docker-compose > /dev/null ; then
+elif command -v docker-compose >/dev/null; then
   echo -e "\n${ORANGE}""${BOLD}""WARNING: Old docker-compose installation found""${NC}"
   echo -e "${ORANGE}""${BOLD}""It is recommend to remove the current docker installation and restart the EMBA installation afterwards!""${NC}"
   echo -e "${ORANGE}Please check the installed docker packages the following way: dpkg -l | grep docker.${NC}"
@@ -374,7 +391,7 @@ elif command -v docker-compose > /dev/null ; then
   fi
   export DOCKER_COMPOSE=("docker-compose")
   # if we do not have the docker command it probably is a more modern system and we need to install the docker-cli package
-  if ! command -v docker > /dev/null; then
+  if ! command -v docker >/dev/null; then
     echo -e "\n${ORANGE}WARNING: No docker command available -> we check for docker-cli package${NC}"
     if [[ "$(apt-cache search docker-cli | wc -l)" -gt 0 ]]; then
       echo -e "\n${ORANGE}Info: No docker command available -> we install the docker-cli package now${NC}"
@@ -385,11 +402,11 @@ fi
 
 # docker moved around v7 to a new API (API v2)
 # we need to check if our installed docker version has support for the compose sub-command:
-if command -v docker > /dev/null; then
+if command -v docker >/dev/null; then
   if docker --help | grep -q compose; then
     # new docker API version v2 -> docker v7
     export DOCKER_COMPOSE=("docker" "compose")
-  elif command -v docker-compose > /dev/null; then
+  elif command -v docker-compose >/dev/null; then
     # we only need to check the docker-compose version if we are running on the old API with docker-compose
     DOCKER_COMP_VER=$("${DOCKER_COMPOSE[@]}" -v | grep version | tr '-' ' ' | awk '{print $4}' | tr -d ',' | sed 's/^v//')
     if [[ $(version "${DOCKER_COMP_VER}") -lt $(version "1.28.5") ]]; then
@@ -405,13 +422,14 @@ fi
 
 # if DOCKER_COMPOSE is not set we are in trouble
 if ! [[ -v DOCKER_COMPOSE[@] ]]; then
-  echo -e "\n${ORANGE}""${BOLD}""WARNING: No docker installation performed""${NC}"
+  echo -e "\n${ORANGE}${BOLD}WARNING: No docker installation performed${NC}"
   echo -e "${ORANGE}If you are running into installation issues please check your docker installation${NC}"
   echo -e "${ORANGE}and ensure the docker and docker compose command are available in your system path.${NC}"
   echo ""
-  if [[ "${FORCE}" -ne 1 ]]; then
-    read -p "If you know what you are doing you can press any key to continue ..." -n1 -s -r
-  fi
+  echo -e "\n${ORANGE}${BOLD}IMPORTANT:  IF you do not perform a working docker (including docker compose) installation${NC}"
+  echo -e "${ORANGE}${BOLD}              EMBA can't run on your machine!${NC}"
+  echo -e "\n${ORANGE}${BOLD}WARNING:    EMBA installation process will be stopped -> fix the environment and try again.${NC}"
+  exit 1
 fi
 
 # initial installation of the host environment:
@@ -468,6 +486,9 @@ if [[ "${CVE_SEARCH}" -ne 1 ]] || [[ "${DOCKER_SETUP}" -ne 1 ]] || [[ "${IN_DOCK
   IL10_system_emulator
 
   IL15_emulated_checks_init
+
+  # Upcoming feature
+  # IL16_legacy_ssl_curl
 
   IF17_cve_bin_tool
 

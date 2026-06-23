@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -19,13 +19,15 @@
 : <<'END_OF_DOCS'
 =pod
 
+=encoding UTF-8
+
 =head1 S04_windows_basic_analysis
 
-==head2 S04_windows_basic_analysis Short description
+=head2 S04_windows_basic_analysis Short description
 
-This module uses exiftool and readpe to access pe details details of Windows binaries.
+This module uses exiftool and readpe to access PE details of Windows binaries.
 
-==head2 S04_windows_basic_analysis Detailed description
+=head2 S04_windows_basic_analysis Detailed description
 
 Module starts exiftool without further parameters and writes output to LOG_PATH_MODULE/$(basename $BIN).txt
 
@@ -77,7 +79,7 @@ Product Version                 : 1, 3, 6, 0
 Special Build                   :
 Tag 080904b 0                   :
 
-==head2 S04_windows_basic_analysis 3rd party tools
+=head2 S04_windows_basic_analysis 3rd party tools
 
 Any 3rd party tool that is needed from your module. Also include the tested and known working
 version and download link:
@@ -89,36 +91,35 @@ ii  libimage-exiftool-perl     12.76+dfsg-1        all       library and program
 
 ii  readpe                     0.84-1              amd64     command-line tools to manipulate Windows PE files
 
-==head2 S04_windows_basic_analysis Testfirmware
+=head2 S04_windows_basic_analysis Testfirmware
 
 Any Windows binary (exe) file should be fine.
 
-==head2 S04_windows_basic_analysis Output
+=head2 S04_windows_basic_analysis Output
 
 Example output of module see "Detailed description"
 
-==head2 S04_windows_basic_analysis License
+=head2 S04_windows_basic_analysis License
 
 EMBA module S04_windows_basic_analysis is licensed under GPLv3
 SPDX-License-Identifier: GPL-3.0-only
 Link to license document: https://github.com/e-m-b-a/emba/blob/master/LICENSE
 
-==head2 S04_windows_basic_analysis Todo
+=head2 S04_windows_basic_analysis Todo
 
 None
 
-==head2 S04_windows_basic_analysis Known issues
+=head2 S04_windows_basic_analysis Known issues
 
 None
 
-==head2 S04_windows_basic_analysis Author(s)
+=head2 S04_windows_basic_analysis Author(s)
 
 Michael Messner
 
 =cut
 
 END_OF_DOCS
-
 
 S04_windows_basic_analysis() {
   module_log_init "${FUNCNAME[0]}"
@@ -131,24 +132,24 @@ S04_windows_basic_analysis() {
 
   mapfile -t lEXE_ARCHIVES_ARR < <(grep "PE32\|MSI" "${P99_CSV_LOG}" | sort -u || true)
 
-  if [[ "${#lEXE_ARCHIVES_ARR[@]}" -gt 0 ]] ; then
-    for lEXE_ARCHIVE in "${lEXE_ARCHIVES_ARR[@]}" ; do
+  if [[ "${#lEXE_ARCHIVES_ARR[@]}" -gt 0 ]]; then
+    for lEXE_ARCHIVE in "${lEXE_ARCHIVES_ARR[@]}"; do
       lEXE_ARCHIVE=$(echo "${lEXE_ARCHIVE}" | cut -d ';' -f2)
       lEXE_NAME=$(basename "${lEXE_ARCHIVE}")
 
       sub_module_title "exifdata for ${lEXE_NAME}" "${LOG_PATH_MODULE}/exifdata_${lEXE_NAME}.log"
       print_output "[*] Extract exifdata from ${ORANGE}${lEXE_NAME}${NC}" "no_log"
-      exiftool "${lEXE_ARCHIVE}" 2>/dev/null >> "${LOG_PATH_MODULE}/exifdata_${lEXE_NAME}.log" || print_error "[-] Something happened on exiftool analysis for ${lEXE_ARCHIVE}"
+      exiftool "${lEXE_ARCHIVE}" 2>/dev/null >>"${LOG_PATH_MODULE}/exifdata_${lEXE_NAME}.log" || print_error "[-] Something happened on exiftool analysis for ${lEXE_ARCHIVE}"
 
       sub_module_title "PEdata for ${lEXE_NAME}" "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log"
       print_output "[*] Extract pedata from ${ORANGE}${lEXE_NAME}${NC}" "no_log"
       write_log "" "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log"
       write_log "[*] pescan for ${ORANGE}${lEXE_NAME}${NC}" "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log"
-      pescan -v "${lEXE_ARCHIVE}" 2>/dev/null >> "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log" || print_error "[-] Something happened on pescan analysis for ${lEXE_ARCHIVE}"
+      pescan -v "${lEXE_ARCHIVE}" 2>/dev/null >>"${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log" || print_error "[-] Something happened on pescan analysis for ${lEXE_ARCHIVE}"
 
       write_log "" "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log"
       write_log "[*] readpe for ${ORANGE}${lEXE_NAME}${NC}" "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log"
-      readpe "${lEXE_ARCHIVE}" 2>/dev/null >> "${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log" || print_error "[-] Something happened on pedata analysis for ${lEXE_ARCHIVE}"
+      readpe "${lEXE_ARCHIVE}" 2>/dev/null >>"${LOG_PATH_MODULE}/readpe_${lEXE_NAME}.log" || print_error "[-] Something happened on pedata analysis for ${lEXE_ARCHIVE}"
 
       if [[ -s "${LOG_PATH_MODULE}/exifdata_${lEXE_NAME}.log" ]]; then
         print_output "[*] Windows binary exifdata - $(orange "$(print_path "${lEXE_ARCHIVE}")")" "" "${LOG_PATH_MODULE}/exifdata_${lEXE_NAME}.log"
@@ -167,4 +168,3 @@ S04_windows_basic_analysis() {
 
   module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
 }
-

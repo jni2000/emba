@@ -3,7 +3,7 @@
 
 # Copyright 2015 - 2016 Daming Dominic Chen
 # Copyright 2017 - 2020 Mingeun Kim, Dongkwan Kim, Eunsoo Kim
-# Copyright 2022 - 2025 Siemens Energy AG
+# Copyright 2022 - 2026 Siemens Energy AG
 #
 # This script is based on the original scripts from the firmadyne and firmAE project
 # Original firmadyne project can be found here: https://github.com/firmadyne/firmadyne
@@ -29,7 +29,7 @@ GREEN="\033[0;32m"
 NC="\033[0m"
 
 "${BUSYBOX}" echo -e "\n[*] Network configuration - ACTION: ${ORANGE}${ACTION}${NC}"
-"${BUSYBOX}" echo "network config started" >> /tmp/EMBA_config_state
+"${BUSYBOX}" echo "network config started" >>/tmp/EMBA_config_state
 
 if ("${EMBA_NET}"); then
   "${BUSYBOX}" echo "[*] Starting network configuration"
@@ -80,7 +80,7 @@ if ("${EMBA_NET}"); then
         "${BUSYBOX}" brctl show
         break
       fi
-      CNT=$((CNT+1))
+      CNT=$((CNT + 1))
     done
 
     "${BUSYBOX}" sleep 5
@@ -161,5 +161,5 @@ if ("${EMBA_NET}"); then
 
   "${BUSYBOX}" echo "[*] Current network configuration:"
   "${BUSYBOX}" ifconfig -a
-  "${BUSYBOX}" echo "network config finished" >> /tmp/EMBA_config_state
+  "${BUSYBOX}" echo "network config finished" >>/tmp/EMBA_config_state
 fi

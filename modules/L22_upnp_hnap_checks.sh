@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -18,7 +18,6 @@
 #               It is also recommended to only use this technique in a dockerized or virtualized environment.
 
 L22_upnp_hnap_checks() {
-
   export UPNP_UP=0
   export HNAP_UP=0
   export JNAP_UP=0
@@ -28,7 +27,7 @@ L22_upnp_hnap_checks() {
     module_title "Live UPnP/HNAP tests of emulated device."
     pre_module_reporter "${FUNCNAME[0]}"
 
-    if [[ ${IN_DOCKER} -eq 0 ]] ; then
+    if [[ ${IN_DOCKER} -eq 0 ]]; then
       print_output "[!] This module should not be used in developer mode and could harm your host environment."
     fi
 
@@ -72,15 +71,15 @@ check_basic_upnp() {
   for lPORT_SERVICE in "${NMAP_PORTS_SERVICES_ARR[@]}"; do
     lPORT=$(echo "${lPORT_SERVICE}" | cut -d/ -f1 | tr -d "[:blank:]")
     # 23/tcp telnet => tcp telnet
-    lTCP_UDP="${lPORT_SERVICE/*\/}"
+    lTCP_UDP="${lPORT_SERVICE/*\//}"
     # tcp telnet => tcp
-    lTCP_UDP="${lTCP_UDP/\ *}"
+    lTCP_UDP="${lTCP_UDP/\ */}"
     lSERVICE=$(echo "${lPORT_SERVICE}" | awk '{print $2}' | tr -d "[:blank:]")
     print_output "[*] UPnP reachability check for ${ORANGE}${lPORT_SERVICE} - ${lPORT}/${lTCP_UDP} - ${IP_ADDRESS_}${NC}"
     if [[ "${lSERVICE}" == *"upnp"* && "${lTCP_UDP}" == *"tcp"* ]]; then
       print_output "[*] Testing UPnP reachability for ${ORANGE}${lPORT_SERVICE} - ${lPORT}/${lTCP_UDP} - ${IP_ADDRESS_}${NC}" "no_log"
       if ! system_online_check "${IP_ADDRESS_}" "${lPORT}"; then
-        if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}"; then
+        if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}" 1; then
           print_output "[-] System not responding - Not performing further UPnP checks"
           return
         fi
@@ -98,11 +97,11 @@ check_basic_upnp() {
     local lUPNP_CNT=0
     while [[ $(grep -c "desc\|IGD" "${LOG_PATH_MODULE}"/upnp-discovery-check.txt || true) -lt 1 ]]; do
       upnpc -m "${lINTERFACE}" -P 2>&1 | tee -a "${LOG_PATH_MODULE}"/upnp-discovery-check.txt || true
-      ((lUPNP_CNT+=1))
+      ((lUPNP_CNT += 1))
       [[ "${lUPNP_CNT}" -gt 5 ]] && break
 
       if ! system_online_check "${IP_ADDRESS_}" "${lPORT}"; then
-        if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}"; then
+        if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}" 1; then
           print_output "[-] System not responding - Not performing further UPnP checks"
           return
         fi
@@ -112,15 +111,15 @@ check_basic_upnp() {
   done
 
   if [[ -f "${LOG_PATH_MODULE}"/upnp-discovery-check.txt ]]; then
-    UPNP_UP=$(grep "desc\|IGD" "${LOG_PATH_MODULE}"/upnp-discovery-check.txt | grep -v -c "No IGD" || echo 0)
-    if [[ ${UPNP_UP} -gt 0 ]]; then
+    UPNP_UP=$(grep "desc\|IGD" "${LOG_PATH_MODULE}"/upnp-discovery-check.txt | grep -v -c "No IGD" || true)
+    if [[ ${UPNP_UP:-0} -gt 0 ]]; then
       print_ln
-      tee -a "${LOG_FILE}" < "${LOG_PATH_MODULE}"/upnp-discovery-check.txt
+      tee -a "${LOG_FILE}" <"${LOG_PATH_MODULE}"/upnp-discovery-check.txt
       print_ln
     fi
   fi
 
-  if [[ "${UPNP_UP}" -gt 0 ]]; then
+  if [[ "${UPNP_UP:-0}" -gt 0 ]]; then
     UPNP_UP=1
     print_output "[+] UPnP service successfully identified"
   fi
@@ -148,10 +147,10 @@ check_basic_hnap_jnap() {
       fi
 
       local lCURL_OPTS=("-v" "-L" "--noproxy" "'*'" "--max-redirs" "0" "-f" "-m" "5" "-s")
-      if [[ "${lSERVICE}" == *"ssl|http"* ]] || [[ "${lSERVICE}" == *"ssl/http"* ]];then
+      if [[ "${lSERVICE}" == *"ssl|http"* ]] || [[ "${lSERVICE}" == *"ssl/http"* ]]; then
         local lURL="https://${IP_ADDRESS_}:${lPORT}"
         lCURL_OPTS+=("-k")
-      elif [[ "${lSERVICE}" == *"http"* ]];then
+      elif [[ "${lSERVICE}" == *"http"* ]]; then
         local lURL="http://${IP_ADDRESS_}:${lPORT}"
       else
         # no http service - check the next one
@@ -164,26 +163,26 @@ check_basic_hnap_jnap() {
       for lHNAP_URL in "${lHNAP_URLs_ARR[@]}"; do
         # HNAP
         if ! system_online_check "${IP_ADDRESS_}" "${lPORT}"; then
-          if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}"; then
+          if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}" 1; then
             print_output "[-] System not responding - Not performing further HNAP checks"
             return
           fi
         fi
         local lDISCOVERY_LOG="${LOG_PATH_MODULE}/hnap-discovery-check-${lPORT}.${RANDOM}"
-        curl "${lCURL_OPTS[@]}" -X GET "${lURL}/${lHNAP_URL}/" &> "${lDISCOVERY_LOG}" || true
+        curl "${lCURL_OPTS[@]}" -X GET "${lURL}/${lHNAP_URL}/" &>"${lDISCOVERY_LOG}" || true
 
         local lHNAP_TIME_OUT_CNT=1
         while grep -q "Operation timed out" "${lDISCOVERY_LOG}"; do
           if ! system_online_check "${IP_ADDRESS_}" "${lPORT}"; then
-            if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}"; then
+            if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}" 1; then
               print_output "[-] System not responding - Not performing further HNAP checks"
               return
             fi
           fi
           print_output "[-] Warning: Operation timeout for HNAP discovery detected #${lHNAP_TIME_OUT_CNT}/10 ... try again in 5sec"
           sleep 5
-          curl "${lCURL_OPTS[@]}" -X GET "${lURL}/${lHNAP_URL}/" &> "${lDISCOVERY_LOG}" || true
-          ((lHNAP_TIME_OUT_CNT+=1))
+          curl "${lCURL_OPTS[@]}" -X GET "${lURL}/${lHNAP_URL}/" &>"${lDISCOVERY_LOG}" || true
+          ((lHNAP_TIME_OUT_CNT += 1))
           [[ "${lHNAP_TIME_OUT_CNT}" -gt 10 ]] && break
         done
       done
@@ -193,7 +192,7 @@ check_basic_hnap_jnap() {
       local lJNAP_ACTION="X-JNAP-Action: http://cisco.com/jnap/core/GetDeviceInfo"
 
       if ! system_online_check "${IP_ADDRESS_}" "${lPORT}"; then
-        if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}"; then
+        if ! restart_emulation "${IP_ADDRESS_}" "${IMAGE_NAME}" 1 "${STATE_CHECK_MECHANISM}" 1; then
           print_output "[-] System not responding - Not performing further HNAP checks"
           return
         fi
@@ -220,7 +219,10 @@ check_basic_hnap_jnap() {
 
       if [[ $(grep -h "/jnap/" "${LOG_PATH_MODULE}"/jnap-discovery-check-* 2>/dev/null | grep -c -v "${lJNAP_ACTION}" | awk '{sum += $1 } END { print sum }') -gt 0 ]]; then
         print_ln
-        tee -a "${LOG_FILE}" < "${LOG_PATH_MODULE}"/jnap-discovery-check-*
+        local lFILE=""
+        for lFILE in "${LOG_PATH_MODULE}"/jnap-discovery-check-*; do
+          tee -a "${LOG_FILE}" <"${lFILE}"
+        done
         print_ln
 
         JNAP_UP=$(grep -h "/jnap/" "${LOG_PATH_MODULE}"/jnap-discovery-check-* 2>/dev/null | grep -c -v "${lJNAP_ACTION}" | awk '{sum += $1 } END { print sum }' || echo 0)
@@ -234,7 +236,6 @@ check_basic_hnap_jnap() {
         JNAP_UP=1
         print_output "[+] JNAP service successfully identified"
       fi
-
     done
   fi
 
@@ -257,11 +258,11 @@ check_jnap_access() {
   local lPORT=80
 
   # https://korelogic.com/Resources/Advisories/KL-001-2015-006.txt
-  mapfile -t lSYSINFO_CGI_ARR < <(find "${LOG_DIR}"/firmware -type f -name "sysinfo.cgi" -o -name "getstinfo.cgi"| sort -u 2>/dev/null || true)
+  mapfile -t lSYSINFO_CGI_ARR < <(find "${LOG_DIR}"/firmware -type f -name "sysinfo.cgi" -o -name "getstinfo.cgi" | sort -u 2>/dev/null || true)
 
   for lSYSINFO_CGI in "${lSYSINFO_CGI_ARR[@]}"; do
     print_output "[*] Testing for sysinfo.cgi" "no_log"
-    curl -v -L --noproxy '*' --max-redirs 0 -f -m 5 -s -X GET http://"${IP_ADDRESS_}":"${lPORT}"/"${lSYSINFO_CGI}" > "${LOG_PATH_MODULE}"/JNAP_"${lSYSINFO_CGI}".log || true
+    curl -v -L --noproxy '*' --max-redirs 0 -f -m 5 -s -X GET http://"${IP_ADDRESS_}":"${lPORT}"/"${lSYSINFO_CGI}" >"${LOG_PATH_MODULE}"/JNAP_"${lSYSINFO_CGI}".log || true
 
     if [[ -f "${LOG_PATH_MODULE}"/JNAP_"${lSYSINFO_CGI}".log ]]; then
       if grep -q "wl0_ssid=\|wl1_ssid=\|wl0_passphrase=\|wl1_passphrase=\|wps_pin=\|default_passphrase=" "${LOG_PATH_MODULE}"/JNAP_"${lSYSINFO_CGI}".log; then
@@ -276,7 +277,7 @@ check_jnap_access() {
     lJNAP_EPT_NAME="$(echo "${lJNAP_EPT}" | rev | cut -d '/' -f1 | rev)"
     local lJNAP_ACTION="X-JNAP-Action: ${lJNAP_EPT}"
     local lDATA="{}"
-    curl -v -L --noproxy '*' --max-redirs 0 -f -m 5 -s -X POST -H "${lJNAP_ACTION}" -d "${lDATA}" http://"${IP_ADDRESS_}":"${lPORT}"/JNAP/ > "${LOG_PATH_MODULE}"/JNAP_"${lJNAP_EPT_NAME}".log || true
+    curl -v -L --noproxy '*' --max-redirs 0 -f -m 5 -s -X POST -H "${lJNAP_ACTION}" -d "${lDATA}" http://"${IP_ADDRESS_}":"${lPORT}"/JNAP/ >"${LOG_PATH_MODULE}"/JNAP_"${lJNAP_EPT_NAME}".log || true
 
     if [[ -s "${LOG_PATH_MODULE}"/JNAP_"${lJNAP_EPT_NAME}".log ]]; then
       if grep -q "_ErrorUnauthorized" "${LOG_PATH_MODULE}"/JNAP_"${lJNAP_EPT_NAME}".log; then

@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -30,7 +30,6 @@ load_strict_mode_settings() {
   fi
   shopt -s extdebug # Enable extended debugging
   # nosemgrep
-  IFS=$'\n\t'     # Set the "internal field separator"
-  trap 'wickStrictModeFail $?' ERR  # The ERR trap is triggered when a script catches an error
+  IFS=$'\n\t'                      # Set the "internal field separator"
+  trap 'wickStrictModeFail $?' ERR # The ERR trap is triggered when a script catches an error
 }
-

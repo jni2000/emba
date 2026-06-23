@@ -1,21 +1,26 @@
 name: First interaction
 
 on:
-  - pull_request_target
-  - issues
+  pull_request:
+    types:
+      - opened
+  issues:
+    types:
+      - opened
+
+permissions:
+  issues: write
+  pull-requests: write
 
 jobs:
-  build:
+  first-interaction:
+    name: Greet First-Time Contributors
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      issues: write
 
     steps:
-    - uses: actions/first-interaction@v1
+    - uses: actions/first-interaction@1c4688942c71f71d4f5502a26ea67c331730fa4d  # v3.1.0 - https://github.com/actions/first-interaction/releases/tag/v3.1.0
       with:
-        repo-token: "${{ secrets.GITHUB_TOKEN }}"
-        issue-message: |
+        issue_message: |
           Thank you for contributing an issue!
 
           **Welcome to the EMBA firmware analysis community!**
@@ -26,11 +31,11 @@ jobs:
 
           If you like _EMBA_ you have the chance to support us by becoming a [Sponsor](https://github.com/sponsors/e-m-b-a) or buying some beer [here](https://www.buymeacoffee.com/securefirmware).
 
-          To show your love for _EMBA_ with nice shirts or other merch you can check our [Spreadshop](https://www.spreadshirt.de/shop/user/emba+firmware+analyzer/maenner/bekleidung/pullover-hoodies/hoodies/#?affiliateId=1257693).
+          To show your love for _EMBA_ with nice shirts or other merch you can check our [Spreadshop](https://emba-firmware-analyzer.myspreadshop.de/).
 
           This is an automatic message. Allow for time for the EMBA community to be able to read the issue and comment on it.
 
-        pr-message: |
+        pr_message: |
           Thank you for contributing a pull request!
 
           **Welcome to the EMBA firmware analysis community!**
@@ -41,6 +46,6 @@ jobs:
 
           If you like _EMBA_ you have the chance to support us by becoming a [Sponsor](https://github.com/sponsors/e-m-b-a) or buying some beer [here](https://www.buymeacoffee.com/securefirmware).
 
-          To show your love for _EMBA_ with nice shirts or other merch you can check our [Spreadshop](https://www.spreadshirt.de/shop/user/emba+firmware+analyzer/maenner/bekleidung/pullover-hoodies/hoodies/#?affiliateId=1257693).
+          To show your love for _EMBA_ with nice shirts or other merch you can check our [Spreadshop](https://emba-firmware-analyzer.myspreadshop.de/).
           
           This is an automatic message. Allow for time for the EMBA community to be able to read the pull request and comment on it.

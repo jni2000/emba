@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -31,7 +31,7 @@ P50_binwalk_extractor() {
 
   # if we have a verified UEFI firmware we do not need to do anything here
   # if we have already found a linux (RTOS==0) we do not need to do anything here
-  if [[ "${UEFI_VERIFIED}" -eq 1 ]] || [[ "${RTOS}" -eq 0 ]] || [[ "${DJI_DETECTED}" -eq 1 ]] || [[ "${WINDOWS_EXE}" -eq 1 ]]; then
+  if [[ "${UEFI_VERIFIED}" -eq 1 ]] || [[ "${RTOS}" -eq 0 ]] || [[ "${DJI_DETECTED}" -eq 1 ]] || [[ "${WINDOWS_EXE}" -eq 1 ]] || [[ "${BINWALK_DISABLE:-0}" -eq 1 ]]; then
     module_end_log "${FUNCNAME[0]}" 0
     return
   fi
@@ -58,6 +58,9 @@ P50_binwalk_extractor() {
     return
   fi
 
+  local lFW_NAME_BINWALK=""
+  lFW_NAME_BINWALK="$(basename "${lFW_PATH_BINWALK}")"
+
   local lFILES_BINWALK_ARR=()
   local lBINARY=""
   local lWAIT_PIDS_P99_ARR=()
@@ -67,9 +70,13 @@ P50_binwalk_extractor() {
 
   local lLINUX_PATH_COUNTER_BINWALK=0
   local lOUTPUT_DIR_BINWALK="${LOG_DIR}"/firmware/binwalk_extracted
+  local lBINWALK_LOG_FILE="${LOG_PATH_MODULE}/binwalk-${lFW_NAME_BINWALK}.log"
 
   if [[ -f "${lFW_PATH_BINWALK}" ]]; then
-    binwalker_matryoshka "${lFW_PATH_BINWALK}" "${lOUTPUT_DIR_BINWALK}"
+    binwalker_matryoshka "${lFW_PATH_BINWALK}" "${lOUTPUT_DIR_BINWALK}" "${lBINWALK_LOG_FILE}"
+    if [[ -f "${lBINWALK_LOG_FILE}" ]]; then
+      print_output "[+] Binwalk extraction output for ${lFW_NAME_BINWALK}" "" "${lBINWALK_LOG_FILE}"
+    fi
   fi
 
   print_ln
@@ -82,11 +89,10 @@ P50_binwalk_extractor() {
     print_output "[*] Extracted ${ORANGE}${#lFILES_BINWALK_ARR[@]}${NC} files."
     print_output "[*] Populating backend data for ${ORANGE}${#lFILES_BINWALK_ARR[@]}${NC} files ... could take some time" "no_log"
 
-    for lBINARY in "${lFILES_BINWALK_ARR[@]}" ; do
+    for lBINARY in "${lFILES_BINWALK_ARR[@]}"; do
       binary_architecture_threader "${lBINARY}" "${FUNCNAME[0]}" &
       local lTMP_PID="$!"
-      store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+      lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
     done
 
     lLINUX_PATH_COUNTER_BINWALK=$(linux_basic_identification "${lOUTPUT_DIR_BINWALK}" "${FUNCNAME[0]}")
@@ -97,7 +103,6 @@ P50_binwalk_extractor() {
     print_output "[*] Found ${ORANGE}${#lFILES_BINWALK_ARR[@]}${NC} files."
     print_output "[*] Additionally the Linux path counter is ${ORANGE}${lLINUX_PATH_COUNTER_BINWALK}${NC}."
     print_ln
-    tree -sh "${lOUTPUT_DIR_BINWALK}" | tee -a "${LOG_FILE}"
   fi
 
   detect_root_dir_helper "${lOUTPUT_DIR_BINWALK}"
@@ -131,14 +136,20 @@ remove_uprintable_paths() {
 
   local lFIRMWARE_UNPRINT_FILES_ARR=()
   local lFW_FILE=""
+  local lNEW_FILE=""
 
   mapfile -t lFIRMWARE_UNPRINT_FILES_ARR < <(find "${lOUTPUT_DIR_BINWALK}" -name '*[^[:print:]]*')
   if [[ "${#lFIRMWARE_UNPRINT_FILES_ARR[@]}" -gt 0 ]]; then
     print_output "[*] Unprintable characters detected in extracted files -> cleanup started"
     for lFW_FILE in "${lFIRMWARE_UNPRINT_FILES_ARR[@]}"; do
       print_output "[*] Cleanup of ${lFW_FILE} with unprintable characters"
-      print_output "[*] Moving ${lFW_FILE} to ${lFW_FILE//[![:print:]]/_}"
-      mv "${lFW_FILE}" "${lFW_FILE//[![:print:]]/_}" || true
+      # print_output "[*] Moving ${lFW_FILE} to ${lFW_FILE//[![:print:]]/_}"
+      # mv "${lFW_FILE}" "${lFW_FILE//[![:print:]]/_}" || true
+      lNEW_FILE=$(iconv -f UTF-8 -t ASCII//TRANSLIT <<<"${lFW_FILE}" || true)
+      if [[ -n "${lNEW_FILE}" ]]; then
+        print_output "[*] Moving ${lFW_FILE} to ${lNEW_FILE}"
+        mv "${lFW_FILE}" "${lNEW_FILE}" || print_output "[-] Cleanup of file ${lFW_FILE} not possible"
+      fi
     done
   fi
 }

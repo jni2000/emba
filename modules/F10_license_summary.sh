@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -16,7 +16,6 @@
 # Description:  Collects license details and gives a list with binaries, identified version and
 #               the corresponding license (if available). The license details are maintained in the
 #               configuration files located here: config/bin_version_identifiers
-
 
 F10_license_summary() {
   module_log_init "${FUNCNAME[0]}"
@@ -52,7 +51,7 @@ F10_license_summary() {
       lBINARY="${lBINARY%\'}"
 
       print_output "[+] Binary: ${ORANGE}$(basename "${lBINARY}")${GREEN} / Product: ${ORANGE}${lPRODUCT}${GREEN} / Version: ${ORANGE}${lVERSION}${GREEN} / License: ${ORANGE}${lLICENSE_ARR[*]}${NC}"
-      ((lCOUNT_LIC+=1))
+      ((lCOUNT_LIC += 1))
     done
   else
     print_output "[-] No SBOM details available"

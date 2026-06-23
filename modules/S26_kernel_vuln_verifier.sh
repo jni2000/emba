@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -21,8 +21,7 @@
 
 export THREAD_PRIO=1
 
-S26_kernel_vuln_verifier()
-{
+S26_kernel_vuln_verifier() {
   module_log_init "${FUNCNAME[0]}"
   module_title "Kernel vulnerability identification and verification"
   pre_module_reporter "${FUNCNAME[0]}"
@@ -39,14 +38,12 @@ S26_kernel_vuln_verifier()
     return
   fi
 
-  export VULN_CNT=1
-
   # we wait until the s24 module is finished and hopefully shows us a kernel version
   module_wait "S24_kernel_bin_identifier"
 
   # now we should have a csv log with a kernel version:
   # shellcheck disable=SC2153
-  if ! [[ -f "${S24_CSV_LOG}" ]] || [[ "$(wc -l < "${S24_CSV_LOG}")" -lt 1 ]]; then
+  if ! [[ -f "${S24_CSV_LOG}" ]] || [[ "$(wc -l <"${S24_CSV_LOG}")" -lt 1 ]]; then
     print_output "[-] No Kernel version file (s24 results) identified ..."
     module_end_log "${FUNCNAME[0]}" 0
     return
@@ -66,12 +63,14 @@ S26_kernel_vuln_verifier()
 
   # K_VERSIONS_ARR is from get_kernel_version_csv_data_s24
   for lK_VERSION in "${K_VERSIONS_ARR[@]}"; do
+    export VULN_CNT=1
     [[ "${lK_VERSION}" =~ ^[0-9\.a-zA-Z]$ ]] && continue
 
     local lK_FOUND=0
-    print_output "[+] Identified kernel version: ${ORANGE}${lK_VERSION}${NC}"
+    sub_module_title "Kernel version ${ORANGE}${lK_VERSION}${NC}"
+    print_output "[*] Analyzing kernel version: ${ORANGE}${lK_VERSION}${NC}"
 
-    mapfile -t lKERNEL_ELF_EMBA_ARR < <(grep "${lK_VERSION}" "${S24_CSV_LOG}" | \
+    mapfile -t lKERNEL_ELF_EMBA_ARR < <(grep "${lK_VERSION}" "${S24_CSV_LOG}" |
       grep -v "config extracted" | sort -u | sort -r -n -t\; -k4 || true)
 
     # we check for a kernel configuration
@@ -85,7 +84,7 @@ S26_kernel_vuln_verifier()
         if [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f1)" == "/"* ]]; then
           # field 1 is the matching kernel elf file - sometimes we have a config but no elf file
           KERNEL_ELF_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f1)
-          print_output "[+] Found kernel elf file: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
+          print_output "[+] Found kernel binary file: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
           lK_FOUND=1
           break
         fi
@@ -104,7 +103,7 @@ S26_kernel_vuln_verifier()
           if ! [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f2)" == "NA" ]]; then
             KERNEL_ELF_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f1)
             # we use the first entry with a kernel init detected
-            print_output "[+] Found kernel elf file with init entry: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
+            print_output "[+] Found kernel binary file with init entry: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
             lK_FOUND=1
             break
           fi
@@ -120,7 +119,7 @@ S26_kernel_vuln_verifier()
           # and no init entry -> we just use the first valid elf file
           if ! [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f1)" == "NA" ]]; then
             KERNEL_ELF_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f1)
-            print_output "[+] Found kernel elf file: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
+            print_output "[+] Found kernel binary file: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
             # we use the first entry as final resort
             lK_FOUND=1
             break
@@ -177,7 +176,7 @@ S26_kernel_vuln_verifier()
     local lWAIT_CNT=0
     while ! [[ -f "${lKERNEL_ARCH_PATH}/linux-${lK_VERSION_KORG}.tar.gz" ]]; do
       print_output "[*] Waiting for kernel sources ..." "no_log"
-      ((lWAIT_CNT+=1))
+      ((lWAIT_CNT += 1))
       if [[ "${lWAIT_CNT}" -gt 60 ]] || [[ -f "${TMP_DIR}"/linux_download_failed ]]; then
         print_output "[-] No valid kernel source file available ... check for further kernel versions"
         continue 2
@@ -189,9 +188,9 @@ S26_kernel_vuln_verifier()
     # Probably it is just downloaded partly and we need to wait a bit longer
     lWAIT_CNT=0
     print_output "[*] Testing kernel sources ..." "no_log"
-    while ! gunzip -t "${lKERNEL_ARCH_PATH}/linux-${lK_VERSION_KORG}.tar.gz" 2> /dev/null; do
+    while ! gunzip -t "${lKERNEL_ARCH_PATH}/linux-${lK_VERSION_KORG}.tar.gz" 2>/dev/null; do
       print_output "[*] Testing kernel sources ..." "no_log"
-      ((lWAIT_CNT+=1))
+      ((lWAIT_CNT += 1))
       if [[ "${lWAIT_CNT}" -gt 60 ]] || [[ -f "${TMP_DIR}"/linux_download_failed ]]; then
         print_output "[-] No valid kernel source file available ... check for further kernel versions"
         continue 2
@@ -210,8 +209,16 @@ S26_kernel_vuln_verifier()
     fi
 
     print_output "[*] Kernel version ${ORANGE}${lK_VERSION}${NC} CVE detection ... "
-    if ! grep -q "cve-bin-tool database preparation finished" "${TMP_DIR}/tmp_state_data.log"; then
-      print_error "[-] cve-bin-tool database not prepared - cve analysis probably not working"
+    local lCNT=1
+    while ! grep -q "cve-bin-tool database preparation finished" "${TMP_DIR}/tmp_state_data.log" 2>/dev/null; do
+      [[ "${lCNT}" -gt 100 ]] && break
+      print_output "[-] S26 - cve-bin-tool database not prepared - waiting #${lCNT}" "no_log"
+      sleep 5
+      lCNT=$((lCNT + 1))
+    done
+    # now for the error log
+    if ! grep -q "cve-bin-tool database preparation finished" "${TMP_DIR}/tmp_state_data.log" 2>/dev/null; then
+      print_error "[-] S26 - cve-bin-tool database not prepared - waiting #${lCNT}"
     fi
     cve_bin_tool_threader "${lBOM_REF}" "${lK_VERSION}" "${lORIG_SOURCE:-kernel_verification}" lVENDOR_ARR lPRODUCT_ARR
 
@@ -223,7 +230,7 @@ S26_kernel_vuln_verifier()
     fi
 
     print_output "[*] Generate CVE vulnerabilities array for kernel version ${ORANGE}${lK_VERSION}${NC} ..." "no_log"
-    mapfile -t lALL_KVULNS_ARR < <(tail -n+2 "${lCVE_DETAILS_PATH}")
+    mapfile -t lALL_KVULNS_ARR < <(tail -n+2 "${lCVE_DETAILS_PATH}" | sort -u -t, -k4,4)
 
     print_ln
     print_output "[+] Extracted ${ORANGE}${#lALL_KVULNS_ARR[@]}${GREEN} vulnerabilities based on kernel version only"
@@ -234,31 +241,37 @@ S26_kernel_vuln_verifier()
     fi
 
     sub_module_title "Identify kernel symbols ..."
-    readelf -W -s "${KERNEL_ELF_PATH}" | grep "FUNC\|OBJECT" | sed 's/.*FUNC//' | sed 's/.*OBJECT//' | awk '{print $4}' | \
-      sed 's/\[\.\.\.\]//' > "${LOG_PATH_MODULE}"/symbols.txt || true
-    SYMBOLS_CNT=$(wc -l < "${LOG_PATH_MODULE}"/symbols.txt)
-    print_output "[*] Extracted ${ORANGE}${SYMBOLS_CNT}${NC} symbols from kernel (${KERNEL_ELF_PATH})"
+    if file -b "${KERNEL_ELF_PATH}" | grep -q ELF; then
+      readelf -W -s "${KERNEL_ELF_PATH}" | grep "FUNC\|OBJECT" | sed 's/.*FUNC//' | sed 's/.*OBJECT//' | awk '{print $4}' |
+        sed 's/\[\.\.\.\]//' >"${LOG_PATH_MODULE}"/symbols.txt || true
+      SYMBOLS_CNT=$(wc -l <"${LOG_PATH_MODULE}"/symbols.txt)
+      print_output "[*] Extracted ${ORANGE}${SYMBOLS_CNT}${NC} symbols from kernel (${KERNEL_ELF_PATH})"
+    fi
 
     if [[ "${SYMBOLS_CNT}" -eq 0 ]]; then
       print_output "[-] No symbols found for kernel ${lK_VERSION} - ${KERNEL_ELF_PATH}"
-      print_output "[*] No further analysis possible for ${lK_VERSION} - ${KERNEL_ELF_PATH}"
-      continue
+      # print_output "[*] No further analysis possible for ${lK_VERSION} - ${KERNEL_ELF_PATH}"
+      # continue
     fi
 
-    if [[ -d "${LOG_DIR}""/firmware" ]]; then
+    if [[ -d "${LOG_DIR}/firmware" ]]; then
       print_output "[*] Identify kernel modules and extract binary symbols ..." "no_log"
       # shellcheck disable=SC2016
-      find "${LOG_DIR}/firmware" -name "*.ko" -print0|xargs -r -0 -P 16 -I % sh -c 'readelf -W -a "%" | grep FUNC | sed "s/.*FUNC//" | awk "{print $4}" | sed "s/\[\.\.\.\]//"' >> "${LOG_PATH_MODULE}"/symbols.txt || true
+      find "${LOG_DIR}/firmware" -name "*.ko" -print0 | xargs -r -0 -P 16 -I % sh -c 'readelf -W -a "%" | grep FUNC | sed "s/.*FUNC//" | awk "{print $4}" | sed "s/\[\.\.\.\]//"' >>"${LOG_PATH_MODULE}"/symbols.txt || true
     fi
 
-    uniq "${LOG_PATH_MODULE}"/symbols.txt > "${LOG_PATH_MODULE}"/symbols_uniq.txt
-    SYMBOLS_CNT=$(wc -l < "${LOG_PATH_MODULE}"/symbols_uniq.txt)
+    uniq "${LOG_PATH_MODULE}"/symbols.txt >"${LOG_PATH_MODULE}"/symbols_uniq.txt
+    SYMBOLS_CNT=$(wc -l <"${LOG_PATH_MODULE}"/symbols_uniq.txt)
 
-    print_ln
-    print_output "[+] Extracted ${ORANGE}${SYMBOLS_CNT}${GREEN} unique symbols (kernel+modules)"
-    write_link "${LOG_PATH_MODULE}/symbols_uniq.txt"
-    print_ln
-    split_symbols_file
+    if [[ "${SYMBOLS_CNT}" -eq 0 ]]; then
+      print_output "[-] No symbols found for kernel modules."
+    else
+      print_ln
+      print_output "[+] Extracted ${ORANGE}${SYMBOLS_CNT}${GREEN} unique symbols (kernel+modules)"
+      write_link "${LOG_PATH_MODULE}/symbols_uniq.txt"
+      print_ln
+      split_symbols_file
+    fi
 
     sub_module_title "Linux kernel vulnerability verification"
 
@@ -269,9 +282,8 @@ S26_kernel_vuln_verifier()
     for lVULN in "${lALL_KVULNS_ARR[@]}"; do
       vuln_checker_threader "${lVULN}" &
       local lTMP_PID="$!"
-      store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_S26_ARR_MAIN+=( "${lTMP_PID}" )
-      ((VULN_CNT+=1))
+      lWAIT_PIDS_S26_ARR_MAIN+=("${lTMP_PID}")
+      ((VULN_CNT += 1))
       max_pids_protection "${MAX_MOD_THREADS}" lWAIT_PIDS_S26_ARR_MAIN
     done
 
@@ -283,27 +295,53 @@ S26_kernel_vuln_verifier()
   # fix the CVE log file and add the verified vulnerabilities:
   if [[ -f "${LOG_PATH_MODULE}/vuln_summary.txt" ]]; then
     # extract the verified CVEs:
-    mapfile -t lVERIFIED_BB_VULNS_ARR < <(cut -d ';' -f3,6,7 "${LOG_PATH_MODULE}"/cve_results_kernel_*.csv | grep ";1;\|;1$" | cut -d ';' -f1 || true)
-    if [[ "${#lVERIFIED_BB_VULNS_ARR[@]}" -gt 0 ]]; then
-      local lTMP_CVE_ENTRY=""
-      # get the CVEs part of vuln_summary.txt
-      lTMP_CVE_ENTRY=$(grep -o -E ":\s+CVEs:\ [0-9]+\s+:" "${LOG_PATH_MODULE}/vuln_summary.txt" || true)
-      # replace the spaces with the verified entry -> :  CVEs: 1234 (123):
-      lTMP_CVE_ENTRY=$(echo "${lTMP_CVE_ENTRY}" | sed -r 's/(CVEs:\ [0-9]+)\s+/\1 ('"${#lVERIFIED_BB_VULNS_ARR[@]}"')/')
-      # ensure we have the right length -> :  CVEs: 1234 (123)  :
-      lTMP_CVE_ENTRY=$(printf '%s%*s' "${lTMP_CVE_ENTRY%:}" "$((22-"${#lTMP_CVE_ENTRY}"))" ":")
+    local lVERIFIED_KERNEL_VERS_ARR=()
+    local lVERIFIED_KVERS=""
+    mapfile -t lVERIFIED_KERNEL_VERS_ARR < <(cut -d ';' -f1,3,6,7 "${LOG_PATH_MODULE}"/cve_results_kernel_*.csv 2>/dev/null | grep ";1;\|;1$" | cut -d ';' -f1 | sort -u || true)
 
-      # final replacement in file:
-      sed -i -r 's/:\s+CVEs:\ [0-9]+\s+:/'"${lTMP_CVE_ENTRY}"'/' "${LOG_PATH_MODULE}/vuln_summary.txt"
+    if [[ "${#lVERIFIED_KERNEL_VERS_ARR[@]}" -gt 0 ]]; then
+      for lVERIFIED_KVERS in "${lVERIFIED_KERNEL_VERS_ARR[@]}"; do
+        local lVERIFIED_CVE_ARR_PER_VERSION=()
+        mapfile -t lVERIFIED_CVE_ARR_PER_VERSION < <(grep -h "^${lVERIFIED_KVERS}" "${LOG_PATH_MODULE}"/cve_results_kernel_*.csv | cut -d ';' -f3,6,7 | grep ";1;\|;1$" | cut -d ';' -f1 | sort -u || true)
 
-      for lVERIFIED_BB_CVE in "${lVERIFIED_BB_VULNS_ARR[@]}"; do
-        # print_output "[*] Replacing ${lVERIFIED_BB_CVE} in ${LOG_PATH_MODULE}/cve_sum/*_finished.txt" "no_log"
-        local lV_ENTRY="(V)"
-        # ensure we have the correct length
-        # shellcheck disable=SC2183
-        lV_ENTRY=$(printf '%s%*s' "${lV_ENTRY}" "$((19-"${#lVERIFIED_BB_CVE}"-"${#lV_ENTRY}"))")
-        sed -i -r 's/('"${lVERIFIED_BB_CVE}"')\s+/\1 '"${lV_ENTRY}"'/' "${LOG_PATH_MODULE}/cve_sum/"*_finished.txt || true
+        local lTMP_CVE_ENTRY=""
+        local lFULL_ENTRY_LINE=""
+        # get the CVEs part of vuln_summary.txt
+        lFULL_ENTRY_LINE=$(grep -E "${lVERIFIED_KVERS}.*:\s+CVEs:\ [0-9]+\s+:" "${LOG_PATH_MODULE}/vuln_summary.txt" || true)
+        [[ -z "${lFULL_ENTRY_LINE}" ]] && continue
+        lTMP_CVE_ENTRY=$(echo "${lFULL_ENTRY_LINE}" | grep -o -E ":\s+CVEs:\ [0-9]+\s+:" || true)
+        # replace the spaces with the verified entry -> :  CVEs: 1234 (123):
+        lTMP_CVE_ENTRY=$(echo "${lTMP_CVE_ENTRY}" | sed -r 's/(CVEs:\ [0-9]+)\s+/\1 ('"${#lVERIFIED_CVE_ARR_PER_VERSION[@]}"')/')
+        # ensure we have the right length -> :  CVEs: 1234 (123)  :
+        lTMP_CVE_ENTRY=$(printf '%s%*s' "${lTMP_CVE_ENTRY%:}" "$((22 - "${#lTMP_CVE_ENTRY}"))" ":")
+
+        # final replacement in file:
+        echo "${lFULL_ENTRY_LINE}" | sed -r 's/:\s+CVEs:\ [0-9]+\s+:/'"${lTMP_CVE_ENTRY}"'/' >>"${LOG_PATH_MODULE}/vuln_summary_new.txt"
+
+        for lVERIFIED_BB_CVE in "${lVERIFIED_CVE_ARR_PER_VERSION[@]}"; do
+          # print_output "[*] Replacing ${lVERIFIED_BB_CVE} in ${LOG_PATH_MODULE}/cve_sum/*_finished.txt" "no_log"
+          local lV_ENTRY="(V)"
+          # ensure we have the correct length
+          # shellcheck disable=SC2183
+          lV_ENTRY=$(printf '%s%*s' "${lV_ENTRY}" "$((19 - "${#lVERIFIED_BB_CVE}" - "${#lV_ENTRY}"))")
+          sed -i -r 's/('"${lVERIFIED_BB_CVE}"')\s+/\1 '"${lV_ENTRY}"'/' "${LOG_PATH_MODULE}/cve_sum/"*"${lVERIFIED_KVERS}"_finished.txt || true
+        done
       done
+
+      if [[ -f "${LOG_PATH_MODULE}/vuln_summary_new.txt" ]]; then
+        local lVULN_SUMMARY_ENTRY=""
+        while read -r lVULN_SUMMARY_ENTRY; do
+          local lkVERSION=""
+          lkVERSION=$(echo "${lVULN_SUMMARY_ENTRY}" | cut -d ':' -f3)
+          # remove all spaces
+          lkVERSION="${lkVERSION//\ /}"
+          if grep -q "${lkVERSION}" "${LOG_PATH_MODULE}/vuln_summary_new.txt"; then
+            continue
+          fi
+          echo "${lVULN_SUMMARY_ENTRY}" >>"${LOG_PATH_MODULE}/vuln_summary_new.txt"
+        done <"${LOG_PATH_MODULE}/vuln_summary.txt"
+        mv "${LOG_PATH_MODULE}/vuln_summary_new.txt" "${LOG_PATH_MODULE}/vuln_summary.txt" || true
+      fi
     fi
   fi
 
@@ -338,8 +376,8 @@ vuln_checker_threader() {
 
   # extract kernel source paths from summary -> we use these paths to check if they are used by our
   # symbols or during kernel compilation
-  mapfile -t lK_PATHS_ARR < <(echo "${lSUMMARY}" | tr ' ' '\n' | sed 's/\\$//' | grep ".*\.[chS]$" | sed -r 's/CVE-[0-9]+-[0-9]+:[0-9].*://' \
-    | sed -r 's/CVE-[0-9]+-[0-9]+:null.*://' | sed 's/^(//' | sed 's/)$//' | sed 's/,$//' | sed 's/\.$//' | cut -d: -f1 || true)
+  mapfile -t lK_PATHS_ARR < <(echo "${lSUMMARY}" | tr ' ' '\n' | sed 's/\\$//' | grep ".*\.[chS]$" | sed -r 's/CVE-[0-9]+-[0-9]+:[0-9].*://' |
+    sed -r 's/CVE-[0-9]+-[0-9]+:null.*://' | sed 's/^(//' | sed 's/)$//' | sed 's/,$//' | sed 's/\.$//' | cut -d: -f1 | grep -v "\*" || true)
 
   for lK_PATH in "${lK_PATHS_ARR[@]}"; do
     # we have only a filename without path -> we search for possible candidate files in the kernel sources
@@ -362,11 +400,11 @@ vuln_checker_threader() {
             write_log "lCNT_PATHS_FOUND" "${TMP_DIR}/s25_counting.tmp"
             if [[ "${SYMBOLS_CNT}" -gt 0 ]]; then
               symbol_verifier "${lCVE}" "${lK_VERSION}" "${lK_PATH}" "${lCVSS3}" "${lKERNEL_DIR}" &
-              lWAIT_PIDS_S26_ARR+=( "$!" )
+              lWAIT_PIDS_S26_ARR+=("$!")
             fi
             if [[ "${COMPILE_SOURCE_FILES_VERIFIED}" -gt 0 ]]; then
               compile_verifier "${lCVE}" "${lK_VERSION}" "${lK_PATH}" "${lCVSS3}" &
-              lWAIT_PIDS_S26_ARR+=( "$!" )
+              lWAIT_PIDS_S26_ARR+=("$!")
             fi
           else
             # this vulnerability is for a different architecture -> we can skip it for our kernel
@@ -379,11 +417,11 @@ vuln_checker_threader() {
           write_log "lCNT_PATHS_FOUND" "${TMP_DIR}/s25_counting.tmp"
           if [[ "${SYMBOLS_CNT}" -gt 0 ]]; then
             symbol_verifier "${lCVE}" "${lK_VERSION}" "${lK_PATH}" "${lCVSS3}" "${lKERNEL_DIR}" &
-            lWAIT_PIDS_S26_ARR+=( "$!" )
+            lWAIT_PIDS_S26_ARR+=("$!")
           fi
           if [[ "${COMPILE_SOURCE_FILES_VERIFIED}" -gt 0 ]]; then
             compile_verifier "${lCVE}" "${lK_VERSION}" "${lK_PATH}" "${lCVSS3}" &
-            lWAIT_PIDS_S26_ARR+=( "$!" )
+            lWAIT_PIDS_S26_ARR+=("$!")
           fi
         fi
       else
@@ -447,7 +485,7 @@ extract_kernel_arch() {
   fi
 
   ORIG_K_ARCH="${ORIG_K_ARCH,,}"
-  ORIG_K_ARCH="${ORIG_K_ARCH//\ }"
+  ORIG_K_ARCH="${ORIG_K_ARCH//\ /}"
   print_output "[+] Identified kernel architecture ${ORANGE}${ORIG_K_ARCH}${NC}"
 }
 
@@ -460,14 +498,14 @@ symbol_verifier() {
   local lVULN_FOUND=0
   local lCHUNK_FILE=""
 
-  for lCHUNK_FILE in "${LOG_PATH_MODULE}"/symbols_uniq.split.* ; do
+  for lCHUNK_FILE in "${LOG_PATH_MODULE}"/symbols_uniq.split.*; do
     # echo "testing chunk file $lCHUNK_FILE"
-    if grep -q -f "${lCHUNK_FILE}" "${lKERNEL_DIR}/${lK_PATH}" ; then
+    if grep -q -f "${lCHUNK_FILE}" "${lKERNEL_DIR}/${lK_PATH}"; then
       # echo "verified chunk file $lCHUNK_FILE"
       local lOUTx="[+] ${ORANGE}${lCVE}${GREEN} (${ORANGE}${lCVSS}${GREEN}) - ${ORANGE}${lK_PATH}${GREEN} verified - exported symbol${NC}"
       print_output "${lOUTx}"
       write_log "${lOUTx}" "${LOG_PATH_MODULE}/kernel_verification_${lK_VERSION}_detailed.log"
-      echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - exported symbol verified - ${lK_PATH}" >> "${LOG_PATH_MODULE}""/${lCVE}_symbol_verified.txt"
+      echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - exported symbol verified - ${lK_PATH}" >>"${LOG_PATH_MODULE}""/${lCVE}_symbol_verified.txt"
       lVULN_FOUND=1
       break
     fi
@@ -477,14 +515,14 @@ symbol_verifier() {
   # this is only for speed up the process a bit
   [[ "${lVULN_FOUND}" -eq 1 ]] && return
 
-  for lCHUNK_FILE in "${LOG_PATH_MODULE}"/symbols_uniq.split_gpl.* ; do
+  for lCHUNK_FILE in "${LOG_PATH_MODULE}"/symbols_uniq.split_gpl.*; do
     # echo "testing chunk file $lCHUNK_FILE"
-    if grep -q -f "${lCHUNK_FILE}" "${lKERNEL_DIR}/${lK_PATH}" ; then
+    if grep -q -f "${lCHUNK_FILE}" "${lKERNEL_DIR}/${lK_PATH}"; then
       # print_output "[*] verified chunk file $lCHUNK_FILE (GPL)"
       local lOUTx="[+] ${ORANGE}${lCVE}${GREEN} (${ORANGE}${lCVSS}${GREEN}) - ${ORANGE}${lK_PATH}${GREEN} verified - exported symbol (GPL)${NC}"
       print_output "${lOUTx}"
       write_log "${lOUTx}" "${LOG_PATH_MODULE}/kernel_verification_${lK_VERSION}_detailed.log"
-      echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - exported symbol verified (gpl) - ${lK_PATH}" >> "${LOG_PATH_MODULE}""/${lCVE}_symbol_verified.txt"
+      echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - exported symbol verified (gpl) - ${lK_PATH}" >>"${LOG_PATH_MODULE}""/${lCVE}_symbol_verified.txt"
       lVULN_FOUND=1
       break
     fi
@@ -500,9 +538,9 @@ compile_verifier() {
     return
   fi
 
-  if grep -q "${lK_PATH}" "${LOG_PATH_MODULE}"/kernel-compile-files_verified.log ; then
+  if grep -q "${lK_PATH}" "${LOG_PATH_MODULE}"/kernel-compile-files_verified.log; then
     print_output "[+] ${ORANGE}${lCVE}${GREEN} (${ORANGE}${lCVSS}${GREEN}) - ${ORANGE}${lK_PATH}${GREEN} verified - compiled path${NC}"
-    echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - compiled path verified - ${lK_PATH}" >> "${LOG_PATH_MODULE}""/${lCVE}_compiled_verified.txt"
+    echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - compiled path verified - ${lK_PATH}" >>"${LOG_PATH_MODULE}""/${lCVE}_compiled_verified.txt"
   fi
 }
 
@@ -556,10 +594,10 @@ compile_kernel() {
   cd "${HOME_DIR}" || exit
 
   if [[ -f "${LOG_PATH_MODULE}"/kernel-compile.log ]]; then
-    tr ' ' '\n' < "${LOG_PATH_MODULE}"/kernel-compile.log | grep ".*\.[chS]" | tr -d '"' | tr -d ')' | tr -d '<' | tr -d '>' \
-      | tr -d '(' | sed 's/^\.\///' | sed '/^\/.*/d' | tr -d ';' | sed 's/^>//' | sed 's/^-o//' | tr -d \' \
-      | sed 's/--defines=//' | sed 's/\.$//' | sort -u > "${LOG_PATH_MODULE}"/kernel-compile-files.log
-    COMPILE_SOURCE_FILES=$(wc -l < "${LOG_PATH_MODULE}"/kernel-compile-files.log)
+    tr ' ' '\n' <"${LOG_PATH_MODULE}"/kernel-compile.log | grep ".*\.[chS]" | tr -d '"' | tr -d ')' | tr -d '<' | tr -d '>' |
+      tr -d '(' | sed 's/^\.\///' | sed '/^\/.*/d' | tr -d ';' | sed 's/^>//' | sed 's/^-o//' | tr -d \' |
+      sed 's/--defines=//' | sed 's/\.$//' | sort -u >"${LOG_PATH_MODULE}"/kernel-compile-files.log
+    COMPILE_SOURCE_FILES=$(wc -l <"${LOG_PATH_MODULE}"/kernel-compile-files.log)
     print_output "[+] Found ${ORANGE}${COMPILE_SOURCE_FILES}${GREEN} used source files during compilation" "" "${LOG_PATH_MODULE}/kernel-compile-files.log"
 
     # lets check the entries and verify them in our kernel sources
@@ -568,10 +606,10 @@ compile_kernel() {
     while read -r COMPILE_SOURCE_FILE; do
       if [[ -f "${lKERNEL_DIR}""/""${COMPILE_SOURCE_FILE}" ]]; then
         # print_output "[*] Verified Source file $ORANGE$lKERNEL_DIR/$COMPILE_SOURCE_FILE$NC is available"
-        echo "${COMPILE_SOURCE_FILE}" >> "${LOG_PATH_MODULE}"/kernel-compile-files_verified.log
+        echo "${COMPILE_SOURCE_FILE}" >>"${LOG_PATH_MODULE}"/kernel-compile-files_verified.log
       fi
-    done < "${LOG_PATH_MODULE}"/kernel-compile-files.log
-    COMPILE_SOURCE_FILES_VERIFIED=$(wc -l < "${LOG_PATH_MODULE}"/kernel-compile-files_verified.log)
+    done <"${LOG_PATH_MODULE}"/kernel-compile-files.log
+    COMPILE_SOURCE_FILES_VERIFIED=$(wc -l <"${LOG_PATH_MODULE}"/kernel-compile-files_verified.log)
     print_ln
     print_output "[+] Found ${ORANGE}${COMPILE_SOURCE_FILES_VERIFIED}${GREEN} used and available source files during compilation" "" "${LOG_PATH_MODULE}/kernel-compile-files_verified.log"
   else
@@ -637,8 +675,8 @@ final_log_kernel_vulns() {
   for lVULN in "${lALL_KVULNS_ARR[@]}"; do
     report_kvulns_csv "${lVULN}" "${lK_VERSION}" &
     local lTMP_PID="$!"
-    lWAIT_PIDS_S26_1_ARR+=( "${lTMP_PID}" )
-    max_pids_protection $((2*"${MAX_MOD_THREADS}")) lWAIT_PIDS_S26_1_ARR
+    lWAIT_PIDS_S26_1_ARR+=("${lTMP_PID}")
+    max_pids_protection $((2 * "${MAX_MOD_THREADS}")) lWAIT_PIDS_S26_1_ARR
   done
 
   lSYM_USAGE_VERIFIED=$(wc -l "${LOG_PATH_MODULE}"/CVE-*symbol_* 2>/dev/null | tail -n1 | awk '{print $1}' || echo 0)
@@ -649,7 +687,7 @@ final_log_kernel_vulns() {
   # nosemgrep
   lCVE_VERIFIED_SYMBOLS=$(cat "${LOG_PATH_MODULE}"/CVE-*symbol_verified.txt 2>/dev/null | grep "exported symbol" | cut -d\  -f1 | sort -u | wc -l || true)
   # nosemgrep
-  lCVE_VERIFIED_COMPILED=$(cat "${LOG_PATH_MODULE}"/CVE-*compiled_verified.txt 2>/dev/null| grep "compiled path verified" | cut -d\  -f1 | sort -u | wc -l || true)
+  lCVE_VERIFIED_COMPILED=$(cat "${LOG_PATH_MODULE}"/CVE-*compiled_verified.txt 2>/dev/null | grep "compiled path verified" | cut -d\  -f1 | sort -u | wc -l || true)
 
   print_output "[+] Identified ${ORANGE}${#lALL_KVULNS_ARR[@]}${GREEN} unverified CVE vulnerabilities for kernel version ${ORANGE}${lK_VERSION}${NC}"
   write_link "${LOG_PATH_MODULE}/cve_results_kernel_${lK_VERSION}.csv"
@@ -666,10 +704,10 @@ final_log_kernel_vulns() {
   local lCNT_PATHS_FOUND_WRONG_ARCH=0
 
   if [[ -s "${TMP_DIR}/s25_counting.tmp" ]]; then
-    lCNT_PATHS_UNK=$(grep -c "lCNT_PATHS_UNK" "${TMP_DIR}/s25_counting.tmp")
-    lCNT_PATHS_NOT_FOUND=$(grep -c "lCNT_PATHS_NOT_FOUND" "${TMP_DIR}/s25_counting.tmp")
-    lCNT_PATHS_FOUND=$(grep -c "lCNT_PATHS_FOUND" "${TMP_DIR}/s25_counting.tmp")
-    lCNT_PATHS_FOUND_WRONG_ARCH=$(grep -c "lCNT_PATHS_FOUND_WRONG_ARCH" "${TMP_DIR}/s25_counting.tmp")
+    lCNT_PATHS_UNK=$(grep -c "lCNT_PATHS_UNK" "${TMP_DIR}/s25_counting.tmp" || true)
+    lCNT_PATHS_NOT_FOUND=$(grep -c "lCNT_PATHS_NOT_FOUND" "${TMP_DIR}/s25_counting.tmp" || true)
+    lCNT_PATHS_FOUND=$(grep -c "lCNT_PATHS_FOUND" "${TMP_DIR}/s25_counting.tmp" || true)
+    lCNT_PATHS_FOUND_WRONG_ARCH=$(grep -c "lCNT_PATHS_FOUND_WRONG_ARCH" "${TMP_DIR}/s25_counting.tmp" || true)
   fi
 
   print_output "[*] Found ${ORANGE}${lCNT_PATHS_UNK}${NC} advisories with missing vulnerable path details"
@@ -780,7 +818,7 @@ identify_exploits() {
 get_kernel_version_csv_data_s24() {
   local lS24_CSV_LOG="${1:-}"
 
-  if ! [[ -f "${lS24_CSV_LOG}" ]];then
+  if ! [[ -f "${lS24_CSV_LOG}" ]]; then
     print_output "[-] No EMBA log found ..."
     return
   fi

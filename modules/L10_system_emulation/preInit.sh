@@ -2,7 +2,7 @@
 
 # Copyright 2015 - 2016 Daming Dominic Chen
 # Copyright 2017 - 2020 Mingeun Kim, Dongkwan Kim, Eunsoo Kim
-# Copyright 2022 - 2025 Siemens Energy AG
+# Copyright 2022 - 2026 Siemens Energy AG
 #
 # This script is based on the original scripts from the firmadyne and firmAE project
 # Original firmadyne project can be found here: https://github.com/firmadyne/firmadyne
@@ -22,10 +22,10 @@ NC="\033[0m"
 # the other scripts to track the emulation state and ensure they are not running multiple times
 # this file gets removed between automated emulation states. Nevertheless, as we are overwriting
 # it from the preInit script here we should be also fine on manual runs via run.sh
-"${BUSYBOX}" echo "preInit started" > /tmp/EMBA_config_state
+"${BUSYBOX}" echo "preInit started" >/tmp/EMBA_config_state
 
 print_keepalive() {
-  while(true); do
+  while (true); do
     "${BUSYBOX}" echo -e "[*] $(get_date) - EMBA emulation system is live"
     "${BUSYBOX}" sleep 5
   done

@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -41,7 +41,7 @@ P60_deep_extractor() {
   local lFILES_P99_BEFORE=0
   if [[ -f "${P99_CSV_LOG}" ]]; then
     lFILES_P99_BEFORE=$(wc -l "${P99_CSV_LOG}")
-    lFILES_P99_BEFORE="${lFILES_P99_BEFORE/\ *}"
+    lFILES_P99_BEFORE="${lFILES_P99_BEFORE/\ */}"
   fi
 
   check_disk_space
@@ -62,7 +62,7 @@ P60_deep_extractor() {
   local lFILES_P99=0
   if [[ -f "${P99_CSV_LOG}" ]]; then
     lFILES_P99=$(wc -l "${P99_CSV_LOG}")
-    lFILES_P99="${lFILES_P99/\ *}"
+    lFILES_P99="${lFILES_P99/\ */}"
   fi
 
   # we only do the P99 populating if we have done something with the deep extractor
@@ -74,11 +74,10 @@ P60_deep_extractor() {
 
     print_output "[*] Populating backend data for ${ORANGE}${#lFILES_EXT_ARR[@]}${NC} files ... could take some time" "no_log"
 
-    for lBINARY in "${lFILES_EXT_ARR[@]}" ; do
+    for lBINARY in "${lFILES_EXT_ARR[@]}"; do
       binary_architecture_threader "${lBINARY}" "${FUNCNAME[0]}" &
       local lTMP_PID="$!"
-      store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
+      lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
     done
 
     local lLINUX_PATH_COUNTER=0
@@ -90,12 +89,10 @@ P60_deep_extractor() {
     print_output "[*] Additionally the Linux path counter is ${ORANGE}${lLINUX_PATH_COUNTER}${NC}."
     print_output "[*] Before deep extraction we had ${ORANGE}${lFILES_P99_BEFORE}${NC} files, after deep extraction we have now ${ORANGE}${#lFILES_EXT_ARR[@]}${NC} files extracted."
 
-    tree -csh "${FIRMWARE_PATH_CP}" | tee -a "${LOG_FILE}"
-
     # now it should be fine to also set the FIRMWARE_PATH ot the FIRMWARE_PATH_CP
     export FIRMWARE_PATH="${FIRMWARE_PATH_CP}"
 
-    if [[ "${#ROOT_PATH[@]}" -gt 0 ]] ; then
+    if [[ "${#ROOT_PATH[@]}" -gt 0 ]]; then
       write_csv_log "FILES" "LINUX_PATH_COUNTER" "Root PATH detected"
       for lR_PATH in "${ROOT_PATH[@]}"; do
         write_csv_log "${#lFILES_EXT_ARR[@]}" "${lLINUX_PATH_COUNTER}" "${lR_PATH}"
@@ -124,11 +121,10 @@ deep_extractor() {
     fi
     print_output "[*] Populating backend data for ${ORANGE}${#lFILES_DEEP_PRE_ARR[@]}${NC} files ... could take some time" "no_log"
 
-    for lBINARY in "${lFILES_DEEP_PRE_ARR[@]}" ; do
+    for lBINARY in "${lFILES_DEEP_PRE_ARR[@]}"; do
       binary_architecture_threader "${lBINARY}" "${FUNCNAME[0]}" &
       local lTMP_PID="$!"
-      store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_P60_ARR+=( "${lTMP_PID}" )
+      lWAIT_PIDS_P60_ARR+=("${lTMP_PID}")
     done
     wait_for_pid "${lWAIT_PIDS_P60_ARR[@]}"
     detect_root_dir_helper "${LOG_DIR}/firmware"
@@ -182,17 +178,18 @@ deeper_extractor_helper() {
   prepare_file_arr_limited "${FIRMWARE_PATH_CP}"
   print_output "[*] Deep extraction starting ..."
   for lFILE_TMP in "${FILE_ARR_LIMITED[@]}"; do
+    [[ ! -f "${lFILE_TMP}" ]] && continue
     lFILE_MD5="$(md5sum "${lFILE_TMP}")"
-    [[ "${MD5_DONE_DEEP[*]}" == *"${lFILE_MD5/\ *}"* ]] && continue
-    MD5_DONE_DEEP+=( "${lFILE_MD5/\ *}" )
-    deeper_extractor_threader "${lFILE_TMP}" "${lFILE_MD5/\ *}" &
+    [[ "${MD5_DONE_DEEP[*]}" == *"${lFILE_MD5/\ */}"* ]] && continue
+    MD5_DONE_DEEP+=("${lFILE_MD5/\ */}")
+    deeper_extractor_threader "${lFILE_TMP}" "${lFILE_MD5/\ */}" &
     lBIN_PID="$!"
-    lWAIT_PIDS_P60_init+=( "${lBIN_PID}" )
-    max_pids_protection $((2*"${MAX_MOD_THREADS}")) lWAIT_PIDS_P60_init
+    lWAIT_PIDS_P60_init+=("${lBIN_PID}")
+    max_pids_protection $((2 * "${MAX_MOD_THREADS}")) lWAIT_PIDS_P60_init
   done
   wait_for_pid "${lWAIT_PIDS_P60_init[@]}"
 
-  cat "${LOG_PATH_MODULE}/tmp_out_"* >> "${LOG_FILE}" 2>/dev/null || true
+  cat "${LOG_PATH_MODULE}/tmp_out_"* >>"${LOG_FILE}" 2>/dev/null || true
 }
 
 deeper_extractor_threader() {
@@ -208,6 +205,8 @@ deeper_extractor_threader() {
   # to bring all the extractors to log to something we can work with,
   # we just rewrite the LOG_FILE variable in the threader now:
   export LOG_FILE="${LOG_PATH_MODULE}/tmp_out_${lFILE_MD5}"
+  local lEXTRACTION_FILE_NAME=""
+  lEXTRACTION_FILE_NAME="$(basename "${lFILE_TMP}")"
 
   sub_module_title "Deep extraction of ${lFILE_TMP}"
   print_output "[*] Details of file: ${ORANGE}${lFILE_TMP}${NC}"
@@ -254,11 +253,14 @@ deeper_extractor_threader() {
     # or via scanning profile
     # EMBA usually uses unblob as default for the deep extractor
     if [[ "${DEEP_EXTRACTOR}" == "binwalk" ]]; then
-      binwalker_matryoshka "${lFILE_TMP}" "${lFILE_TMP}_binwalk_extracted"
+      local lBINWALK_LOG_FILE="${LOG_PATH_MODULE}/binwalk-${lEXTRACTION_FILE_NAME}.log"
+      binwalker_matryoshka "${lFILE_TMP}" "${lFILE_TMP}_binwalk_extracted" "${lBINWALK_LOG_FILE}"
+      if [[ -f "${lBINWALK_LOG_FILE}" ]]; then
+        print_output "[+] Binwalk extraction output for ${lEXTRACTION_FILE_NAME}" "" "${lBINWALK_LOG_FILE}"
+      fi
     else
       # default case to Unblob
       unblobber "${lFILE_TMP}" "${lFILE_TMP}_unblob_extracted" 0
     fi
   fi
 }
-

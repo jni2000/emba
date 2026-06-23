@@ -18,7 +18,7 @@
 
 EMBA_PROFILE="default-scan.emba"
 
-if ! command -v zenity >/dev/null ; then
+if ! command -v zenity >/dev/null; then
   echo "[-] WARNING: zenity package not installed"
   echo "[*] Install it with sudo apt-get install zenity"
   exit 1
@@ -30,6 +30,13 @@ fi
 if ! [[ -d ./external ]]; then
   echo "[-] WARNING: No EMBA external directory available - have you run the installer.sh script?"
   exit 1
+fi
+
+# Allow profile override via command-line argument
+if [[ -n "$1" ]]; then
+  EMBA_PROFILE="$1"
+else
+  EMBA_PROFILE="default-scan.emba"
 fi
 
 # shellcheck source=./helpers/helpers_emba_print.sh
@@ -89,8 +96,8 @@ if zenity --question --icon=./helpers/emba.svg --title="EMBA firmware analysis" 
   sudo ./emba -l "${EMBA_LOG_DIR}" -f "${FIRMWARE_FILE}" -p ./scan-profiles/"${EMBA_PROFILE}" -X "${FW_VERSION}" -Y "${FW_VENDOR}" -y
   EMBA_RET=$?
   if [[ "${EMBA_RET}" -eq 0 ]]; then
-    if zenity --progress --text="EMBA run was successful - opening web report?" --percentage=100 2>/dev/null; then
-      if command -v firefox >/dev/null ; then
+    if zenity --progress --text="EMBA run was successful. Open the web report?" --percentage=100 2>/dev/null; then
+      if command -v firefox >/dev/null; then
         firefox "${EMBA_LOG_DIR}/html-report/index.html" &
       else
         print_output "[-] firefox not available ... install it and launch the web report" "no_log"

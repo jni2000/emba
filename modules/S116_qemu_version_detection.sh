@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -51,7 +51,7 @@ S116_qemu_version_detection() {
 
     local lLOG_PATH_S115="${LOG_DIR}"/s115_usermode_emulator.txt
     if [[ -f "${lLOG_PATH_S115}" && -d "${LOG_DIR}/s115_usermode_emulator" ]]; then
-      if [[ $(find "${LOG_DIR}/s115_usermode_emulator" -name "qemu_tmp*" | wc -l) -eq 0 ]]; then
+      if [[ -z "$(find "${LOG_DIR}/s115_usermode_emulator" -name "qemu_tmp*" -print -quit)" ]]; then
         print_output "[-] No emulation logs available ... return"
         module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
         return
@@ -77,7 +77,7 @@ S116_qemu_version_detection() {
         version_detection_thread "${lVERSION_JSON_CFG}" &
         local lTMP_PID="$!"
         store_kill_pids "${lTMP_PID}"
-        lWAIT_PIDS_S116_ARR+=( "${lTMP_PID}" )
+        lWAIT_PIDS_S116_ARR+=("${lTMP_PID}")
       done
       print_ln "no_log"
 
@@ -187,4 +187,3 @@ version_detection_thread() {
     done
   fi
 }
-

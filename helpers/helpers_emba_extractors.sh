@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -45,6 +45,7 @@ docker_container_extractor() {
 binwalker_matryoshka() {
   local lFIRMWARE_PATH="${1:-}"
   local lOUTPUT_DIR_BINWALK="${2:-}"
+  local lBINWALK_LOG_FILE="${3:-${LOG_FILE}}"
   local lTIMEOUT="300m"
 
   sub_module_title "Analyze binary firmware blob with binwalk"
@@ -55,7 +56,6 @@ binwalker_matryoshka() {
     mkdir -p "${lOUTPUT_DIR_BINWALK}"
   fi
 
-  timeout --preserve-status --signal SIGINT "${lTIMEOUT}" "${BINWALK_BIN[@]}" -v -e -c -M -d "${lOUTPUT_DIR_BINWALK}" "${lFIRMWARE_PATH}" | tee -a "${LOG_FILE}" || print_error "[-] WARNING: Binwalk returned with error state for ${lFIRMWARE_PATH}"
+  timeout --preserve-status --signal SIGINT "${lTIMEOUT}" "${BINWALK_BIN[@]}" -v -e -c -M -d "${lOUTPUT_DIR_BINWALK}" "${lFIRMWARE_PATH}" | tee -a "${lBINWALK_LOG_FILE}" || print_error "[-] WARNING: Binwalk returned with error state for ${lFIRMWARE_PATH}"
   print_ln
 }
-

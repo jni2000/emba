@@ -2,7 +2,7 @@
 
 # EMBA - EMBEDDED LINUX ANALYZER
 #
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 # Copyright 2020-2023 Siemens AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
@@ -39,7 +39,7 @@ P99_prepare_analyzer() {
   LINUX_PATH_COUNTER="$(linux_basic_identification "${LOG_DIR}/firmware")"
 
   # we have a linux:
-  if [[ ${LINUX_PATH_COUNTER} -gt 0 || ${#ROOT_PATH[@]} -gt 1 ]] ; then
+  if [[ ${LINUX_PATH_COUNTER} -gt 0 || ${#ROOT_PATH[@]} -gt 1 ]]; then
     export FIRMWARE=1
     # FIRMWARE_PATH="$(abs_path "${OUTPUT_DIR}")"
     export FIRMWARE_PATH="${LOG_DIR}"/firmware
@@ -58,12 +58,10 @@ P99_prepare_analyzer() {
     mapfile -t lFILES_ARR < <(find "${LOG_DIR}/firmware" -type f)
     print_output "[*] Populating backend data for ${ORANGE}${#lFILES_ARR[@]}${NC} files ... could take some time" "no_log"
 
-    for lBINARY in "${lFILES_ARR[@]}" ; do
+    for lBINARY in "${lFILES_ARR[@]}"; do
       binary_architecture_threader "${lBINARY}" "${FUNCNAME[0]}" &
       local lTMP_PID="$!"
-      store_kill_pids "${lTMP_PID}"
-      lWAIT_PIDS_P99_ARR+=( "${lTMP_PID}" )
-      max_pids_protection "${MAX_MOD_THREADS}" lWAIT_PIDS_P99_ARR
+      lWAIT_PIDS_P99_ARR+=("${lTMP_PID}")
     done
     wait_for_pid "${lWAIT_PIDS_P99_ARR[@]}"
   fi
@@ -72,7 +70,7 @@ P99_prepare_analyzer() {
   # as we rely on P99_CSV_LOG
   prepare_all_file_arrays "${FIRMWARE_PATH}"
 
-  if [[ ${KERNEL} -eq 0 ]] ; then
+  if [[ ${KERNEL} -eq 0 ]]; then
     architecture_check "${FIRMWARE_PATH}"
     architecture_dep_check
   fi
@@ -113,4 +111,3 @@ P99_prepare_analyzer() {
   write_log "[*] Statistics:${ARCH:-NA}:${D_END:-NA}"
   module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
 }
-

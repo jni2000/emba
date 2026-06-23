@@ -3,7 +3,7 @@
 # EMBA - EMBEDDED LINUX ANALYZER
 #
 # Copyright 2020-2023 Siemens AG
-# Copyright 2020-2025 Siemens Energy AG
+# Copyright 2020-2026 Siemens Energy AG
 #
 # EMBA comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
 # welcome to redistribute it under the terms of the GNU General Public License.
@@ -25,7 +25,7 @@ check_dep_file() {
   local lFILE_NAME="${1:-}"
   local lFILE_PATH="${2:-}"
   print_output "    ""${lFILE_NAME}"" - \\c" "no_log"
-  if ! [[ -f "${lFILE_PATH}" ]] ; then
+  if ! [[ -f "${lFILE_PATH}" ]]; then
     echo -e "${RED}""not ok""${NC}"
     echo -e "${RED}""    Missing ""${lFILE_NAME}"" - check your installation""${NC}"
     DEP_ERROR=1
@@ -38,13 +38,13 @@ check_dep_file() {
 # $2=Tool command, but only if set
 check_dep_tool() {
   local lTOOL_NAME="${1:-}"
-  if [[ -n "${2:-}" ]] ; then
+  if [[ -n "${2:-}" ]]; then
     local lTOOL_COMMAND="${2:-}"
   else
     local lTOOL_COMMAND="${1:-}"
   fi
   print_output "    ""${lTOOL_NAME}"" - \\c" "no_log"
-  if ! command -v "${lTOOL_COMMAND}" > /dev/null ; then
+  if ! command -v "${lTOOL_COMMAND}" >/dev/null; then
     echo -e "${RED}""not ok""${NC}"
     echo -e "${RED}""    Missing ""${lTOOL_NAME}"" - check your installation""${NC}"
     DEP_ERROR=1
@@ -59,13 +59,13 @@ check_dep_tool() {
 # $2=Tool command, but only if set
 check_dep_tool_warning() {
   local lTOOL_NAME="${1:-}"
-  if [[ -n "${2:-}" ]] ; then
+  if [[ -n "${2:-}" ]]; then
     local lTOOL_COMMAND="${2:-}"
   else
     local lTOOL_COMMAND="${1:-}"
   fi
   print_output "    ""${lTOOL_NAME}"" - \\c" "no_log"
-  if ! command -v "${lTOOL_COMMAND}" > /dev/null ; then
+  if ! command -v "${lTOOL_COMMAND}" >/dev/null; then
     echo -e "${ORANGE}""not ok""${NC}"
     echo -e "${ORANGE}""    Missing ""${lTOOL_NAME}"" - check your installation""${NC}"
   else
@@ -100,45 +100,16 @@ prepare_docker_home_dir() {
     # .local/share has also stored the r2 plugin data, this results in restoring only the composer and cwe_checker areas
     cp -pr "${EXT_DIR}"/cwe_checker/.local/share/composer/.htaccess "${HOME}"/.local/share/composer/
     cp -pr "${EXT_DIR}"/cwe_checker/.local/share/cwe_checker/* "${HOME}"/.local/share/cwe_checker/
+
+    # quick hack to have kaleido in place for binwalk
+    if [[ -L "${HOME}/.config/kaleido" ]]; then
+      ln -s "${EXT_DIR}/cwe_checker/.config/kaleido" "${HOME}/.config/kaleido"
+    fi
   fi
 }
 
 # Source: https://stackoverflow.com/questions/4023830/how-to-compare-two-strings-in-dot-separated-version-format-in-bash
 version() { echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
-
-# shellcheck disable=SC1009,SC1072,SC1073
-version_extended() # $1-a $2-op $3-$b
-# see https://stackoverflow.com/questions/4023830/how-to-compare-two-strings-in-dot-separated-version-format-in-bash
-# see https://stackoverflow.com/a/48487783
-# Compare a and b as version strings. Rules:
-# R1: a and b : dot-separated sequence of items. Items are numeric. The last item can optionally end with letters, i.e., 2.5 or 2.5a.
-# R2: Zeros are automatically inserted to compare the same number of items, i.e., 1.0 < 1.0.1 means 1.0.0 < 1.0.1 => yes.
-# R3: op can be '=' '==' '!=' '<' '<=' '>' '>=' (lexicographic).
-# R4: Unrestricted number of digits of any item, i.e., 3.0003 > 3.0000004.
-# R5: Unrestricted number of items.
-{
-  local a=$1 op=$2 b=$3 al=${1##*.} bl=${3##*.}
-  while [[ $al =~ ^[[:digit:]] ]]; do al=${al:1}; done
-  while [[ $bl =~ ^[[:digit:]] ]]; do bl=${bl:1}; done
-  local ai=${a%$al} bi=${b%$bl}
-
-  local ap=${ai//[[:digit:]]} bp=${bi//[[:digit:]]}
-  # nosemgrep
-  ap=${ap//./.0} bp=${bp//./.0}
-
-  local w=1 fmt=$a.$b x IFS=.
-  for x in $fmt; do [ ${#x} -gt $w ] && w=${#x}; done
-  fmt=${*//[^.]}; fmt=${fmt//./%${w}s}
-  # nosemgrep
-  printf -v a $fmt $ai$bp; printf -v a "%s-%${w}s" $a $al
-  # nosemgrep
-  printf -v b $fmt $bi$ap; printf -v b "%s-%${w}s" $b $bl
-
-  case $op in
-    '<='|'>=' ) [ "$a" ${op:0:1} "$b" ] || [ "$a" = "$b" ] ;;
-    * )         [ "$a" $op "$b" ] ;;
-  esac
-}
 
 check_emba_version() {
   local lLATEST_EMBA_VERSION="${1:-}"
@@ -152,7 +123,7 @@ check_emba_version() {
 check_nvd_db() {
   local lREMOTE_HASH="${1:-}"
   local lLOCAL_HASH=""
-  if [[ -d "${EXT_DIR}"/nvd-json-data-feeds ]] ; then
+  if [[ -d "${EXT_DIR}"/nvd-json-data-feeds ]]; then
     [[ -f "${EXT_DIR}"/nvd-json-data-feeds/.git/refs/heads/main ]] && lLOCAL_HASH="$(head "${EXT_DIR}"/nvd-json-data-feeds/.git/refs/heads/main)"
 
     if [[ "${lREMOTE_HASH}" == "${lLOCAL_HASH}" ]]; then
@@ -166,7 +137,7 @@ check_nvd_db() {
 check_epss_db() {
   local lREMOTE_HASH="${1:-}"
   local lLOCAL_HASH=""
-  if [[ -d "${EXT_DIR}"/EPSS-data ]] ; then
+  if [[ -d "${EXT_DIR}"/EPSS-data ]]; then
     [[ -f "${EXT_DIR}"/EPSS-data/.git/refs/heads/main ]] && lLOCAL_HASH="$(head "${EXT_DIR}"/EPSS-data/.git/refs/heads/main)"
 
     if [[ "${lREMOTE_HASH}" == "${lLOCAL_HASH}" ]]; then
@@ -180,7 +151,7 @@ check_epss_db() {
 check_git_hash() {
   local lREMOTE_HASH="${1:-}"
   local lLOCAL_HASH=""
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     [[ -f .git/refs/heads/master ]] && lLOCAL_HASH="$(head .git/refs/heads/master)"
     # lLOCAL_HASH="$(git describe --always)"
 
@@ -195,9 +166,8 @@ check_git_hash() {
 check_docker_image() {
   local lREMOTE_DOCKER_HASH="${1:-}"
   local lLOCAL_DOCKER_HASH=""
-  # lLOCAL_DOCKER_HASH="$(docker inspect --format='{{.RepoDigests}}' embeddedanalyzer/emba:latest | tr -d ']' || true)"
-  lLOCAL_DOCKER_HASH="$(docker inspect --format='{{.RepoDigests}}' jni2000/emba:latest | tr -d ']' || true)"
-  lLOCAL_DOCKER_HASH=${lLOCAL_DOCKER_HASH/*:}
+  lLOCAL_DOCKER_HASH="$(docker inspect --format='{{.RepoDigests}}' embeddedanalyzer/emba:latest | tr -d ']' || true)"
+  lLOCAL_DOCKER_HASH=${lLOCAL_DOCKER_HASH/*:/}
 
   if [[ "${lLOCAL_DOCKER_HASH}" == "${lREMOTE_DOCKER_HASH}" ]]; then
     echo -e "    Docker image version - ${GREEN}ok${NC}"
@@ -209,13 +179,13 @@ check_docker_image() {
 check_docker_version() {
   # docker-compose vs docker compose - see https://docs.docker.com/compose/migrate/
   print_output "    Docker compose version - \\c" "no_log"
-  if command -v docker > /dev/null; then
+  if command -v docker >/dev/null; then
     if docker --help | grep -q compose; then
       export DOCKER_COMPOSE=("docker" "compose")
-      echo -e "${GREEN}""${DOCKER_COMPOSE[@]} ok""${NC}"
-    elif command -v docker-compose > /dev/null; then
+      echo -e "${GREEN}""${DOCKER_COMPOSE[*]} ok""${NC}"
+    elif command -v docker-compose >/dev/null; then
       export DOCKER_COMPOSE=("docker-compose")
-      echo -e "${GREEN}""${DOCKER_COMPOSE[@]} ok""${NC}"
+      echo -e "${GREEN}""${DOCKER_COMPOSE[*]} ok""${NC}"
     else
       echo -e "${RED}""not ok""${NC}"
       DEP_ERROR=1
@@ -228,7 +198,7 @@ check_docker_version() {
 
   local lLOCAL_DOCKER_VERS=""
   lLOCAL_DOCKER_VERS="$(grep image docker-compose.yml | sort -u)"
-  lLOCAL_DOCKER_VERS="${lLOCAL_DOCKER_VERS/*:}"
+  lLOCAL_DOCKER_VERS="${lLOCAL_DOCKER_VERS/*:/}"
   if docker images 2>/dev/null | grep -q "${lLOCAL_DOCKER_VERS}"; then
     echo -e "    Docker-compose EMBA image version - ${GREEN}ok${NC}"
   else
@@ -265,11 +235,11 @@ preparing_cve_bin_tool() {
   python3 "${lCVE_BIN_TOOL}" -i "${TMP_DIR}/cve_bin_tool_health_check.csv" --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o "${TMP_DIR}/cve_bin_tool_health_check_results" >/dev/null || true
 
   if [[ -f "${TMP_DIR}/cve_bin_tool_health_check_results.csv" ]]; then
-    if [[ $(wc -l < "${TMP_DIR}/cve_bin_tool_health_check_results.csv") -gt 10 ]]; then
-      echo "cve-bin-tool database preparation finished" >> "${TMP_DIR}/tmp_state_data.log"
+    if [[ $(wc -l <"${TMP_DIR}/cve_bin_tool_health_check_results.csv") -gt 10 ]]; then
+      echo "cve-bin-tool database preparation finished" >>"${TMP_DIR}/tmp_state_data.log"
       print_output "[+] cve-bin-tool database preparation finished and succeeded" "no_log"
     else
-      echo "cve-bin-tool database preparation finished" >> "${TMP_DIR}/tmp_state_data.log"
+      echo "cve-bin-tool database preparation finished" >>"${TMP_DIR}/tmp_state_data.log"
       print_output "[*] cve-bin-tool database preparation finished - possible malfunction identified" "no_log"
     fi
     rm -f "${TMP_DIR}/cve_bin_tool_health_check_results.csv"
@@ -279,8 +249,7 @@ preparing_cve_bin_tool() {
   [[ -f "${TMP_DIR}/cve_bin_tool_health_check.csv" ]] && rm -f "${TMP_DIR}/cve_bin_tool_health_check.csv"
 }
 
-dependency_check()
-{
+dependency_check() {
   module_title "Dependency check" "no_log"
 
   print_ln "no_log"
@@ -334,103 +303,41 @@ dependency_check()
         check_nvd_db "${lNVD_GITHUB_HASH}"
       fi
     else
-      echo -e "${RED}""not ok""${NC}"
+      echo -e "${RED}not ok${NC}"
       print_output "[!] Warning: EMBA has NO internet connection!" "no_log"
       print_output "[!] Warning: Update checks and multiple EMBA modules are disabled!" "no_log"
-      print_output "[!] Warning: GPT (Q02), kernel verification (S26) and further online modules are disabled!" "no_log"
+      print_output "[!] Warning: Kernel verification (S26) and further online modules are disabled!" "no_log"
     fi
   fi
 
   # running into this in Quest container and on host, but not on isolated EMBA container (as it is CONTAINER_NUMBER 1):
   if [[ "${CONTAINER_NUMBER}" -ne 1 ]]; then
-    if [[ -f "${CONFIG_DIR}/gpt_config.env" ]]; then
-      if grep -v -q "#" "${CONFIG_DIR}/gpt_config.env"; then
-        # readin gpt_config.env
+    if [[ -f "${CONFIG_DIR}/ai_config.env" ]]; then
+      if grep -v -q "#" "${CONFIG_DIR}/ai_config.env"; then
+        # readin ai_config.env
         while read -r LINE; do
           if [[ "${LINE}" == *'='* ]] && [[ "${LINE}" != '#'* ]]; then
             export "$(echo "${LINE}" | xargs)"
           fi
-        done < "${CONFIG_DIR}/gpt_config.env"
+        done <"${CONFIG_DIR}/ai_config.env"
       fi
     fi
-    if [[ "${IN_DOCKER}" -eq 0 ]]; then
-      local lONLINE_CHECK_FILE="${EXT_DIR}""/onlinechecker/EMBA_VERSION.txt"
-    else
-      # in our containers we have mounted our current EMBA dir to /emba, this includes the host ./external with the onlinechecker
-      local lONLINE_CHECK_FILE="/emba/external/onlinechecker/EMBA_VERSION.txt"
-    fi
 
-    # as we first check the onlinechecker/EMBA_VERSION.txt file we know if we are online or not:
-    if ! [[ -f "${lONLINE_CHECK_FILE}" ]] && [[ -n "${OPENAI_API_KEY}" ]]; then
-      # if we have no EMBA_VERSION identified, we do not need to check our GPT key now -> there is no internet
-      print_output "$(indent "${ORANGE}As there is no Internet connection available, no GPT checks performed.${NC}")" "no_log"
-    elif [[ -z "${OPENAI_API_KEY}" ]]; then
-      print_output "$(indent "ChatGPT-API key not set - ${ORANGE}see https://github.com/e-m-b-a/emba/wiki/AI-supported-firmware-analysis for more information${NC}")" "no_log"
-      # The following if clause is currently not working! We have not loaded the profile in this stage
-      # TODO: Find a workaround!
-      if [[ "${GPT_OPTION}" -eq 1 ]]; then
-        DEP_ERROR=1
-      fi
-    else
-      local lRETRIES_=0
-      # on the host we try it only 10 times:
-      local lMAX_RETRIES=10
-      if [[ "${IN_DOCKER}" -eq 1 ]]; then
-        # within the Quest container we can keep trying it as it does not matter if the container starts up later
-        lMAX_RETRIES=200
-      fi
-      local lSLEEPTIME=30
-      while true; do
-        local lHTTP_CODE_=400
-        print_output "    OpenAI-API key  - \\c" "no_log"
-        lHTTP_CODE_=$(curl -sS https://api.openai.com/v1/chat/completions -H "Content-Type: application/json" \
-                -H "Authorization: Bearer ${OPENAI_API_KEY}" \
-                -d @"${CONFIG_DIR}/gpt_template.json" --write-out "%{http_code}" -o /tmp/chatgpt-test.json 2>/dev/null)
-
-        if [[ "${lHTTP_CODE_}" -eq 200 ]] ; then
-          echo -e "${GREEN}""ok""${NC}"
-          rm /tmp/chatgpt-test.json
-          break
-        else
-          if [[ -f /tmp/chatgpt-test.json ]]; then
-            if jq '.error.code' /tmp/chatgpt-test.json | grep -q "rate_limit_exceeded" ; then
-              # rate limit handling - if we got a response like:
-              # Please try again in 20s
-              echo -e "${RED}""not ok (rate limit issues)""${NC}"
-              if jq '.error.message' /tmp/chatgpt-test.json | grep -q "Please try again in " ; then
-                # print_output "GPT API test #${lRETRIES_} - \\c" "no_log"
-                sleep "${lSLEEPTIME}"s
-                # sleeptime gets adjusted on every failure
-                lSLEEPTIME=$((lSLEEPTIME+5))
-                ((lRETRIES_+=1))
-                [[ "${lRETRIES_}" -lt "${lMAX_RETRIES}" ]] && continue
-              fi
-            fi
-            if jq '.error.code' /tmp/chatgpt-test.json | grep -q "insufficient_quota" ; then
-              echo -e "${RED}""not ok (quota limit issues)""${NC}"
-              break
-            fi
+    # load the dependency track connection details from config
+    if [[ -f "${CONFIG_DIR}/dependencytrack.env" ]]; then
+      if grep -v -q "#" "${CONFIG_DIR}/dependencytrack.env"; then
+        # readin dependencytrack.env
+        while read -r LINE; do
+          if [[ "${LINE}" == *'='* ]] && [[ "${LINE}" != '#'* ]]; then
+            export "$(echo "${LINE}" | xargs)"
           fi
-          echo -e "${RED}""not ok""${NC}"
-          print_output "[-] ChatGPT error while testing the API-Key: ${OPENAI_API_KEY}" "no_log"
-          if [[ -f /tmp/chatgpt-test.json ]]; then
-            print_output "[-] ERROR response: $(cat /tmp/chatgpt-test.json)" "no_log"
-          fi
-          # Note: we are running into issues in the case where the key can't be verified, but GPT is not enabled at all
-          #       In such a case we will fail the check without the need of GPT
-          # DEP_ERROR=1
-        fi
-        if grep -q "Testing phase ended" "${LOG_DIR}"/"${MAIN_LOG_FILE}" 2>/dev/null; then
-          print_output "    Testing phase ended  - \\c" "no_log"
-          echo -e "${RED}""exit now""${NC}"
-          DEP_ERROR=1
-        fi
-      done
+        done <"${CONFIG_DIR}/dependencytrack.env"
+      fi
     fi
   else
     print_output "    Isolation - ${GREEN}""ok""${NC}" "no_log"
   fi
-  if [[ "${CONTAINER_NUMBER}" -eq 2 ]] ;  then
+  if [[ "${CONTAINER_NUMBER}" -eq 2 ]]; then
     if [[ "${ONLY_DEP}" -gt 0 ]] && [[ "${FORCE}" -ne 0 ]]; then
       exit 0
     fi
@@ -477,11 +384,11 @@ dependency_check()
   fi
   # EMBA is developed for and on KALI Linux
   # In our experience we can say that it runs on most Debian based systems without any problems
-  if [[ "${USE_DOCKER}" -eq 0 ]] ; then
+  if [[ "${USE_DOCKER}" -eq 0 ]]; then
     print_output "    host distribution - \\c" "no_log"
-    if grep -q "kali" /etc/debian_version 2>/dev/null ; then
+    if grep -q "kali" /etc/debian_version 2>/dev/null; then
       echo -e "${GREEN}""ok""${NC}"
-    elif grep -qEi "debian|buntu|mint" /etc/*release 2>/dev/null ; then
+    elif grep -qEi "debian|buntu|mint" /etc/*release 2>/dev/null; then
       echo -e "${ORANGE}""ok""${NC}"
       echo -e "${ORANGE}""    This script is only tested on KALI Linux, but should run fine on most Debian based distros""${NC}" 1>&2
     else
@@ -492,7 +399,7 @@ dependency_check()
 
   # Check for ./config
   print_output "    Configuration directory - \\c" "no_log"
-  if ! [[ -d "${CONFIG_DIR}" ]] ; then
+  if ! [[ -d "${CONFIG_DIR}" ]]; then
     echo -e "${RED}""not ok""${NC}"
     echo -e "${RED}""    Missing configuration directory - check your installation""${NC}"
     DEP_ERROR=1
@@ -501,9 +408,9 @@ dependency_check()
   fi
 
   # Check for ./external
-  if [[ "${USE_DOCKER}" -eq 0 ]] ; then
+  if [[ "${USE_DOCKER}" -eq 0 ]]; then
     print_output "    external directory - \\c" "no_log"
-    if ! [[ -d "${EXT_DIR}" ]] ; then
+    if ! [[ -d "${EXT_DIR}" ]]; then
       echo -e "${RED}""not ok""${NC}"
       echo -e "${RED}""    Missing configuration directory for external programs - check your installation""${NC}"
       DEP_ERROR=1
@@ -516,7 +423,7 @@ dependency_check()
   check_dep_file "Python virtual environment" "${EXT_DIR}""/emba_venv/bin/activate"
 
   if ! [[ -f "${CONFIG_DIR}"/gh_action ]]; then
-    check_dep_file "NVD CVE database in JSON format" "${EXT_DIR}""/nvd-json-data-feeds/README.md"
+    check_dep_file "NVD CVE database in JSON format" "${EXT_DIR}/nvd-json-data-feeds/README.md"
   fi
 
   print_output "    SQLite CVE database update in config directory - \\c" "no_log"
@@ -569,7 +476,6 @@ dependency_check()
     fi
   fi
 
-
   #######################################################################################
   # Docker for EMBA with docker and notification environment
   #######################################################################################
@@ -585,8 +491,8 @@ dependency_check()
   #######################################################################################
   # Set needed paths and exports inside our container
   #######################################################################################
-  if [[ "${USE_DOCKER}" -eq 0 ]] ; then
-    if command -v binwalk > /dev/null ; then
+  if [[ "${USE_DOCKER}" -eq 0 ]]; then
+    if command -v binwalk >/dev/null; then
       export BINWALK_BIN=("$(which binwalk)")
     else
       export BINWALK_BIN=("${EXT_DIR}/binwalk/target/release/binwalk")
@@ -614,7 +520,7 @@ dependency_check()
     fi
   fi
 
-  if [[ "${USE_DOCKER}" -eq 0  && "${CONTAINER_NUMBER}" -ne 2 ]]; then
+  if [[ "${USE_DOCKER}" -eq 0 && "${CONTAINER_NUMBER}" -ne 2 ]]; then
     check_dep_file "cve-bin-tool" "${EXT_DIR}/cve-bin-tool/cve_bin_tool/cli.py"
     preparing_cve_bin_tool 
     # local lTMP_PID="$!"
@@ -662,44 +568,44 @@ architecture_dep_check() {
 
   print_ln "no_log"
 
-  if [[ "${ARCH}" == "MIPS" ]] ; then
+  if [[ "${ARCH}" == "MIPS" ]]; then
     lARCH_STR="mips"
-  elif [[ "${ARCH}" == "MIPS64R2" ]] ; then
+  elif [[ "${ARCH}" == "MIPS64R2" ]]; then
     lARCH_STR="mips64r2"
-  elif [[ "${ARCH}" == "MIPS64_III" ]] ; then
+  elif [[ "${ARCH}" == "MIPS64_III" ]]; then
     lARCH_STR="mips64_III"
-  elif [[ "${ARCH}" == "MIPS64N32" ]] ; then
+  elif [[ "${ARCH}" == "MIPS64N32" ]]; then
     lARCH_STR="mips64n32"
-  elif [[ "${ARCH}" == "MIPS64v1" ]] ; then
+  elif [[ "${ARCH}" == "MIPS64v1" ]]; then
     lARCH_STR="mips64v1"
-  elif [[ "${ARCH}" == "ARM" ]] ; then
+  elif [[ "${ARCH}" == "ARM" ]]; then
     lARCH_STR="arm"
-  elif [[ "${ARCH}" == "ARM64" ]] ; then
+  elif [[ "${ARCH}" == "ARM64" ]]; then
     lARCH_STR="aarch64"
-  elif [[ "${ARCH}" == "x86" ]] ; then
+  elif [[ "${ARCH}" == "x86" ]]; then
     lARCH_STR="i386"
-  elif [[ "${ARCH}" == "x64" ]] ; then
+  elif [[ "${ARCH}" == "x64" ]]; then
     # lARCH_STR="i386:x86-64"
     lARCH_STR="x86-64"
-  elif [[ "${ARCH}" == "x86-64" ]] ; then
+  elif [[ "${ARCH}" == "x86-64" ]]; then
     lARCH_STR="x86-64"
-  elif [[ "${ARCH}" == "PPC" ]] ; then
+  elif [[ "${ARCH}" == "PPC" ]]; then
     # lARCH_STR="powerpc:common"
     lARCH_STR="powerpc"
-  elif [[ "${ARCH}" == "PPC64" ]] ; then
+  elif [[ "${ARCH}" == "PPC64" ]]; then
     lARCH_STR="powerpc64"
-  elif [[ "${ARCH}" == "NIOS2" ]] ; then
+  elif [[ "${ARCH}" == "NIOS2" ]]; then
     lARCH_STR="nios2"
-  elif [[ "${ARCH}" == "RISCV" ]] ; then
+  elif [[ "${ARCH}" == "RISCV" ]]; then
     lARCH_STR="riscv"
-  elif [[ "${ARCH}" == "QCOM_DSP6" ]] ; then
+  elif [[ "${ARCH}" == "QCOM_DSP6" ]]; then
     lARCH_STR="qcom_dsp6"
-  elif [[ "${ARCH}" == "TRICORE" ]] ; then
+  elif [[ "${ARCH}" == "TRICORE" ]]; then
     lARCH_STR="tricore"
   else
     lARCH_STR="unknown"
   fi
-  if [[ "${lARCH_STR}" == "unknown" ]] ; then
+  if [[ "${lARCH_STR}" == "unknown" ]]; then
     print_output "[-] WARNING: No valid architecture detected\\n" "no_log"
   else
     print_output "[+] ""${ARCH}"" is a valid architecture\\n" "no_log"
