@@ -31,9 +31,12 @@ services:
       - /var/tmp
       - /var/lock
     build: .
+    environment:
+        - USER
+        - CONTAINER_NUMBER=1
     # /dev is needed for the system emulator (L10)
     volumes:
-        - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
+        - /home/${USER}/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
         - ${FIRMWARE}/:/firmware:ro
         - ${LOG}/:/logs
         - ${EMBA}/:/emba:ro
@@ -41,9 +44,6 @@ services:
         - ${EMBA}/external/nvd-json-data-feeds/:/external/nvd-json-data-feeds:ro
         - /etc/localtime:/etc/localtime:ro
         - /dev:/dev
-    environment:
-        - USER
-        - CONTAINER_NUMBER=1
     # network_mode: host
     devices:
       - /dev/fuse:/dev/fuse:rwm
@@ -67,17 +67,17 @@ services:
       - /var/run
       - /var/tmp
       - /var/lock
+    environment:
+        - USER
+        - CONTAINER_NUMBER=2
     volumes:
-        - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
+        - /home/${USER}/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
         - ${FIRMWARE}/:/firmware:ro
         - ${LOG}/:/logs
         - ${EMBA}/:/emba:ro
         - ${EMBA}/external/linux_kernel_sources/:/external/linux_kernel_sources
         - ${EMBA}/external/nvd-json-data-feeds/:/external/nvd-json-data-feeds:ro
         - /etc/localtime:/etc/localtime:ro
-    environment:
-        - USER
-        - CONTAINER_NUMBER=2
     # network_mode: host
     ulimits:
       core:

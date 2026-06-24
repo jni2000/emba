@@ -50,6 +50,8 @@ IF17_cve_bin_tool() {
       # we need a more up to date protobuf for the android extractor -> lets update it now
       pip_install "protobuf==5.*"
 
+      # no need to test, as we are sharing the same .cache/cve-bin-tool data on host
+: << 'SODIACS'
       echo "[*] Preparing test data ..."
       # preparing test data to ensure our CVE database is working as expected
       echo "product,vendor,version" >"./cve_bin_tool_health_check.csv"
@@ -57,6 +59,16 @@ IF17_cve_bin_tool() {
 
       if ! [[ -d "${HOME}"/.cache/cve-bin-tool ]]; then
         mkdir "${HOME}"/.cache/cve-bin-tool
+      fi
+
+      # this was added to include sodiacs specific database data
+      if [ -f "sodiacs-data/sodiacs-cve.json" ]; then
+        echo -e "Copy $(pwd)/sodiacs-data/sodiacs.json to ${HOME}/.cache/cve-bin-tool ..."
+        cp sodiacs-data/sodiacs-cve.json "${HOME}"/.cache/cve-bin-tool
+        ls -la "${HOME}"/.cache/cve-bin-tool > cache.txt
+        echo -e cache.txt
+      else
+        echo -e "File $(pwd)/sodiacs-data/sodiacs.json not found"
       fi
 
       if [[ "${GH_ACTION}" -eq 1 ]]; then
@@ -111,6 +123,8 @@ IF17_cve_bin_tool() {
         echo -e "${ORANGE}ERROR: Could not build cve-bin-tool database${NC}"
         exit 1
       fi
+      echo -e "${ORANGE}""${BOLD}""cve-bin-tool installed.""${NC}"
+SODIACS
       ;;
     esac
   fi
