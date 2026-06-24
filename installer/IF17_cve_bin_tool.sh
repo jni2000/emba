@@ -123,8 +123,8 @@ IF17_cve_bin_tool() {
         echo -e "${ORANGE}ERROR: Could not build cve-bin-tool database${NC}"
         exit 1
       fi
-      echo -e "${ORANGE}""${BOLD}""cve-bin-tool installed.""${NC}"
 SODIACS
+      echo -e "${ORANGE}""${BOLD}""cve-bin-tool successfully installed.""${NC}"
       ;;
     esac
   fi
