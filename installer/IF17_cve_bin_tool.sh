@@ -45,7 +45,7 @@ IF17_cve_bin_tool() {
         git clone https://github.com/jni2000/cve-bin-tool.git external/cve-bin-tool
         ## git clone https://github.com/intel/cve-bin-tool.git external/cve-bin-tool
         cd external/cve-bin-tool || ( echo "Could not install EMBA component cve-bin-tool" && exit 1 )
-        git checkout sodiacs 
+        git checkout sodiacs-zmq-api
         pip install -U -r requirements.txt
         python3 -m pip install -e .
 
