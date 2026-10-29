@@ -61,21 +61,25 @@ set_defaults() {
   export FILE_ARR=()
   export MAX_MODS=0
   export MAX_MOD_THREADS=0
-  export RESTART=0     # if we find an unfinished EMBA scan we try to only process not finished modules
-  export FINAL_FW_RM=0 # remove the firmware working copy after testing (do not waste too much disk space)
-  export ONLY_DEP=0    # test only dependency
-  export RESCAN_SBOM=0 # rescan existing log directory with F17 module only
+  export L25_CRAWL_WORKERS=1 # opt in to parallel web crawling via scan profile
+  export RESTART=0           # if we find an unfinished EMBA scan we try to only process not finished modules
+  export FINAL_FW_RM=0       # remove the firmware working copy after testing (do not waste too much disk space)
+  export ONLY_DEP=0          # test only dependency
+  export RESCAN_SBOM=0       # rescan existing log directory with F17 module only
   export PHP_CHECK=1
   export PRE_CHECK=0 # test and extract binary files with binwalk
   # afterwards do a default EMBA scan
   export SKIP_PRE_CHECKERS=0 # we can set this to 1 to skip all further pre-checkers (WARNING: use this with caution!!!)
   export PYTHON_CHECK=1
+  export FULL_EMULATION=0 # full system emulation - set it via command line parameter -Q
   # enable L10_DEBUG_MODE in scan profile or default config for further debugging capabilities:
   # * create_emulation_archive for all attempts
-  # * do not stop after 2 detected network services
+  # * do not stop early based on MIN_TCP_SERV threshold:
   export L10_DEBUG_MODE=0
-  export FULL_EMULATION=0 # full system emulation - set it via command line parameter -Q
-  export QEMULATION=0     # user-mode emulation - set it via command line parameter -E
+  # In default setting we try to detect 2 network services. If this does not fit the need, it is possible
+  # to adjust this setting via the scanning-profile. Check the scan-profiles/default-scan-emulation.emba as example
+  export MIN_TCP_SERV=2
+  export QEMULATION=0 # user-mode emulation - set it via command line parameter -E
   # some processes are running long and logging a lot
   # to protect the host we are going to kill them on a QEMU_KILL_SIZE limit
   export QEMU_KILL_SIZE="10M"
@@ -94,6 +98,9 @@ set_defaults() {
   # Todo: remove option 1 and 2 and GPT_QUESTION usage
   # Todo: rename all GPT to AI areas
   export AI_OPTION=0 # 0 -> off, 1-> unpaid plan, 2 -> no rate-limit, 3 -> LocalAI Server
+  export LOCAL_AI_SCHEME="http"
+  export LOCAL_AI_PORT="8080"
+  export LOCAL_AI_API_ENDPOINT="/v1"
   export GPT_QUESTION=""
   export MINIMUM_GPT_PRIO=1 # everything above this value gets checked
 
@@ -113,6 +120,7 @@ set_defaults() {
   export EXT_DIR="${INVOCATION_PATH}/external"
   export HELP_DIR="${INVOCATION_PATH}/helpers"
   export MOD_DIR="${INVOCATION_PATH}/modules"
+  export TESTS_DIR="${INVOCATION_PATH}/tests"
   export MOD_DIR_LOCAL="${INVOCATION_PATH}/EMBA-Non-free/modules_local"
   export PID_LOGGING=0
   # this will be in TMP_DIR/pid_notes.log
@@ -153,6 +161,10 @@ set_defaults() {
   # usually no memory limit is needed, but some modules/tools are wild and we need to protect our system
   export TOTAL_MEMORY=0
   TOTAL_MEMORY="$(grep MemTotal /proc/meminfo | awk '{print $2}' || true)"
+
+  # BINARY_CORPUS_GENERATION enables the building of small binary artifacts of all detected
+  # components for later analysis or for testcase generation emba_logs/s09_firmware_base_version_check/binary_corpus_tmp/
+  export BINARY_CORPUS_GENERATION=1
   export Q_MOD_PID=""
   export UEFI_VERIFIED=0
   export MAIN_CONTAINER=""
@@ -174,7 +186,6 @@ set_defaults() {
   export MAX_MAP_FILES=1000 # maximum files to analyse and generate dependency map
   export MAX_MAP_JOBS=""    # maximum jobs used for map generation - no entry means the default from the module
   export SVG_BUILD_TIMEOUT="12h"
-  export SVG_FILE="${LOG_PATH_MODULE}/EMBA-dependency-map.svg"
 
   export DEPENDENCY_TRACK_ENABLED=0
 
@@ -210,7 +221,7 @@ set_log_paths() {
   export SBOM_LOG_PATH="${LOG_DIR}/SBOM"
   export EMBA_SBOM_JSON="${SBOM_LOG_PATH}/EMBA_cyclonedx_sbom.json"
   export P02_LOG="${LOG_DIR}/p02_firmware_bin_file_check.txt"
-  export P02_LOG_DIR="${P02_LOG/\.txt/\/}"
+  export P02_LOG_DIR="${P02_LOG%\.txt}"
   export P02_CSV_LOG="${CSV_DIR}/p02_firmware_bin_file_check.csv"
   export P99_LOG="${LOG_DIR}/p99_prepare_analyzer.txt"
   export P99_CSV_LOG="${CSV_DIR}/p99_prepare_analyzer.csv"
@@ -227,7 +238,7 @@ set_log_paths() {
   export S08_CSV_LOG="${CSV_DIR}/s08_package_mgmt_extractor.csv"
   export S09_CSV_LOG="${CSV_DIR}/s09_firmware_base_version_check.csv"
   export S09_LOG="${LOG_DIR}/s09_firmware_base_version_check.txt"
-  export S09_LOG_DIR="${S09_LOG/\.txt/\/}"
+  export S09_LOG_DIR="${S09_LOG%\.txt}"
   export S12_LOG="${LOG_DIR}/s12_binary_protection.txt"
   export S12_CSV_LOG="${CSV_DIR}/s12_binary_protection.csv"
   export S13_LOG="${LOG_DIR}/s13_weak_func_check.txt"
@@ -237,7 +248,7 @@ set_log_paths() {
   export S15_CSV_LOG="${CSV_DIR}/s15_radare_decompile_checks.csv"
   export S16_LOG="${LOG_DIR}/s16_ghidra_decompile_checks.txt"
   export S17_LOG="${LOG_DIR}/s17_cwe_checker.txt"
-  export S17_LOG_DIR="${S17_LOG/\.txt/\/}"
+  export S17_LOG_DIR="${S17_LOG%\.txt}"
   export S17_CSV_LOG="${CSV_DIR}/s17_apk_check.csv"
   export S25_CSV_LOG="${CSV_DIR}/s25_kernel_check.csv"
   export S20_LOG="${LOG_DIR}/s20_shell_check.txt"
@@ -250,10 +261,10 @@ set_log_paths() {
   export S24_CSV_LOG="${CSV_DIR}/s24_kernel_bin_identifier.csv"
   export S25_LOG="${LOG_DIR}/s25_kernel_check.txt"
   export S26_LOG="${LOG_DIR}/s26_kernel_vuln_verifier.txt"
-  export S26_LOG_DIR="${S26_LOG/\.txt/\/}"
+  export S26_LOG_DIR="${S26_LOG%\.txt}"
   export S30_LOG="${LOG_DIR}/s30_version_vulnerability_check.txt"
   export S36_LOG="${LOG_DIR}/s36_lighttpd.txt"
-  export S36_LOG_DIR="${S36_LOG/\.txt/\/}"
+  export S36_LOG_DIR="${S36_LOG%\.txt}"
   export S36_CSV_LOG="${CSV_DIR}/s36_lighttpd.csv"
   export S40_LOG="${LOG_DIR}/s40_weak_perm_check.txt"
   export S45_LOG="${LOG_DIR}/s45_pass_file_check.txt"
@@ -268,15 +279,18 @@ set_log_paths() {
   export S109_LOG="${LOG_DIR}/s109_jtr_local_pw_cracking.txt"
   export S110_LOG="${LOG_DIR}/s110_yara_check.txt"
   export S115_LOG="${LOG_DIR}/s115_usermode_emulator.txt"
-  export S115_LOG_DIR="${S115_LOG/\.txt/\/}"
+  export S115_LOG_DIR="${S115_LOG%\.txt}"
   export S116_CSV_LOG="${CSV_DIR}/s116_qemu_version_detection.csv"
   export S118_CSV_LOG="${CSV_DIR}/s118_busybox_verifier.csv"
   export S118_LOG="${LOG_DIR}/s118_busybox_verifier.txt"
-  export S118_LOG_DIR="${S118_LOG/\.txt/\/}"
+  export S118_LOG_DIR="${S118_LOG%\.txt}"
+  export S130_LOG="${LOG_DIR}/s130_binary_map_builder.txt"
+  export S130_LOG_DIR="${S130_LOG%.txt}"
+  export SVG_FILE="${S130_LOG_DIR}/EMBA-dependency-map.svg"
   export Q02_LOG="${LOG_DIR}/q02_openai_question.txt"
   export Q03_LOG="${LOG_DIR}/q03_localai_connector.txt"
-  export L10_LOG="${LOG_DIR}/l10_system_emulator.txt"
-  export L10_SYS_EMU_RESULTS="${LOG_DIR}/emulator_online_results.log"
+  export L10_LOG="${LOG_DIR}/l10_system_emulation.txt"
+  export L10_CSV_LOG="${CSV_DIR}/l10_system_emulation.csv"
   export L15_LOG="${LOG_DIR}/l15_emulated_checks_init.txt"
   export L15_CSV_LOG="${CSV_DIR}/l15_emulated_checks_nmap.csv"
   export L20_LOG="${LOG_DIR}/l20_snmp_checks.txt"

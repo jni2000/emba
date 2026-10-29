@@ -23,6 +23,11 @@ restart_emulation() {
   local lSTATE_CHECK_MECHANISM="${4:-"PING"}"
   local lRESTART_FORCE="${5:-0}"
 
+  if ! check_for_valid_ip_address "${lIP_ADDRESS}"; then
+    print_output "[-] Invalid IP address ${ORANGE}${lIP_ADDRESS}${NC}" "no_log"
+    return 1
+  fi
+
   if [[ "${lRESTART_FORCE}" -eq 0 ]]; then
     if ping -c 1 "${lIP_ADDRESS}" &>/dev/null; then
       print_output "[+] System with ${ORANGE}${lIP_ADDRESS}${GREEN} responding again - probably it recovered automatically.${NC}" "no_log"
@@ -144,13 +149,13 @@ reset_network_emulation() {
     print_output "Deleting TAP device ${TAPDEV_0}..." "no_log"
     write_script_exec "echo -e \"Deleting TAP device ...\n\"" "${ARCHIVE_PATH}"/run.sh 0
   fi
-  if [[ "${lEXECUTE}" -lt 2 ]] && [[ -f "${ARCHIVE_PATH}"/run.sh ]] && ! grep -q "tunctl -d ${TAPDEV_0}" "${ARCHIVE_PATH}"/run.sh >/dev/null; then
+  if [[ "${lEXECUTE}" -lt 2 ]] && [[ -f "${ARCHIVE_PATH}"/run.sh ]] && ! grep -q "ip tuntap del dev ${TAPDEV_0} mode tap" "${ARCHIVE_PATH}"/run.sh >/dev/null; then
     lEXECUTE_tmp=1
   else
     lEXECUTE_tmp="${lEXECUTE}"
   fi
-  if [[ -f "${ARCHIVE_PATH}"/run.sh ]] && ! grep -q "tunctl -d ${TAPDEV_0}" "${ARCHIVE_PATH}"/run.sh >/dev/null; then
-    write_script_exec "tunctl -d ${TAPDEV_0}" "${ARCHIVE_PATH}"/run.sh "${lEXECUTE_tmp}"
+  if [[ -f "${ARCHIVE_PATH}"/run.sh ]] && ! grep -q "ip tuntap del dev ${TAPDEV_0} mode tap" "${ARCHIVE_PATH}"/run.sh >/dev/null; then
+    write_script_exec "ip tuntap del dev ${TAPDEV_0} mode tap" "${ARCHIVE_PATH}"/run.sh "${lEXECUTE_tmp}"
   fi
 }
 
@@ -166,7 +171,7 @@ write_script_exec() {
   local lPID=""
 
   if [[ "${lEXECUTE}" -ne 0 ]]; then
-    eval "${lCOMMAND}" || true &
+    eval "( ${lCOMMAND} ) || true" &
     lPID="$!"
     disown "${lPID}" 2>/dev/null || true
   fi
@@ -204,11 +209,20 @@ service_online_check() {
   # lNW_SERVICE -> if set we check the availability of this service
   local lNW_SERVICE="${4:-NA}"
 
-  local lMAX_CNT=100
+  local lMAX_CNT=200
   local lCNT=0
 
   local lNMAP_SERV_TCP_ARR=()
   local lSERVICE=""
+
+  if ! check_for_valid_ip_address "${lIP_ADDRESS}"; then
+    print_output "[-] Invalid IP address ${ORANGE}${lIP_ADDRESS}${NC}" "no_log"
+    return 1
+  fi
+  if [[ "${lNW_SERVICE}" != "NA" ]] && ! check_for_valid_port "${lNW_SERVICE}"; then
+    print_output "[-] Invalid network service port ${ORANGE}${lNW_SERVICE}${NC}" "no_log"
+    return 1
+  fi
 
   # if we are called without a network service we extract our services and use them
   # otherwise we are only checking for the service provided by the caller
@@ -224,7 +238,7 @@ service_online_check() {
       for lSERVICE in "${lNMAP_SERV_TCP_ARR[@]}"; do
         if [[ "${lNW_SERVICE}" == "NA" ]] || [[ "${lSERVICE}" == "${lNW_SERVICE}" ]]; then
           if netcat -z -v -w1 "${lIP_ADDRESS}" "${lSERVICE}" >/dev/null; then
-            [[ "${lPRINT_OUTPUT}" -eq 1 ]] && print_output "[*] Network service ${ORANGE}${lSERVICE}${NC} available via the network" "no_log"
+            [[ "${lPRINT_OUTPUT}" -eq 1 ]] && print_output "[*] Network service ${ORANGE}${lSERVICE}${NC} on ${ORANGE}${lIP_ADDRESS}${NC} available via the network" "no_log"
             # we exit for our relevant service is reachable
             # or we have no service that is relevant. This means we can
             # return as soon as some service is up and running
@@ -246,6 +260,17 @@ system_online_check() {
   local lIP_ADDRESS="${1:-}"
   # lNW_SERVICE -> if set we check the availability of this service
   local lNW_SERVICE="${2:-NA}"
+  # print details or do it silent
+  local lPRINT_OUTPUT="${3:-1}"
+
+  if ! check_for_valid_ip_address "${lIP_ADDRESS}"; then
+    print_output "[-] Invalid IP address ${ORANGE}${lIP_ADDRESS}${NC}" "no_log"
+    return 1
+  fi
+  if [[ "${lNW_SERVICE}" != "NA" ]] && ! check_for_valid_port "${lNW_SERVICE}"; then
+    print_output "[-] Invalid network service port ${ORANGE}${lNW_SERVICE}${NC}" "no_log"
+    return 1
+  fi
 
   # STATE_CHECK_MECHANISM is exported by l10
 
@@ -258,13 +283,13 @@ system_online_check() {
   if [[ "${STATE_CHECK_MECHANISM:-PING}" == "PING" ]]; then
     ping -c 1 "${lIP_ADDRESS}"
     if ping_check "${lIP_ADDRESS}" 0; then
-      if service_online_check "${ARCHIVE_PATH}" "${lIP_ADDRESS}" 0 "${lNW_SERVICE}"; then
+      if service_online_check "${ARCHIVE_PATH}" "${lIP_ADDRESS}" "${lPRINT_OUTPUT}" "${lNW_SERVICE}"; then
         return 0
       fi
     fi
   elif [[ "${STATE_CHECK_MECHANISM:-PING}" == "HPING" ]]; then
     if hping_check "${lIP_ADDRESS}" 0; then
-      if service_online_check "${ARCHIVE_PATH}" "${lIP_ADDRESS}" 0 "${lNW_SERVICE}"; then
+      if service_online_check "${ARCHIVE_PATH}" "${lIP_ADDRESS}" "${lPRINT_OUTPUT}" "${lNW_SERVICE}"; then
         return 0
       fi
     fi
@@ -280,6 +305,11 @@ hping_check() {
   # RESTARTER is used to indicate a non reachable system for another wait period after the system is recovered
   local lRESTARTER=0
   local lMAX_PING_CNT=50
+
+  if ! check_for_valid_ip_address "${lIP_ADDRESS}"; then
+    print_output "[-] Invalid IP address ${ORANGE}${lIP_ADDRESS}${NC}" "no_log"
+    return 1
+  fi
 
   while ! [[ "$(hping3 -n -c 1 "${lIP_ADDRESS}" 2>/dev/null | grep -c "^len=")" -gt 0 ]]; do
     lRESTARTER=1
@@ -311,6 +341,11 @@ ping_check() {
   local lPRINT_OUTPUT="${2:-1}"
   local lCOUNTER=1
   local lRESTARTER=0
+
+  if ! check_for_valid_ip_address "${lIP_ADDRESS}"; then
+    print_output "[-] Invalid IP address ${ORANGE}${lIP_ADDRESS}${NC}" "no_log"
+    return 1
+  fi
 
   while ! ping -c 1 "${lIP_ADDRESS}"; do
     lRESTARTER=1
@@ -370,4 +405,34 @@ check_emulation_port() {
   else
     echo -e "${GREEN}""ok""${NC}"
   fi
+}
+
+check_for_valid_port() {
+  local lPORT="${1:-}"
+  if [[ ! "${lPORT}" =~ ^[0-9]{1,5}$ ]]; then
+    return 1
+  fi
+  if ((10#${lPORT} < 1 || 10#${lPORT} > 65535)); then
+    return 1
+  fi
+  return 0
+}
+
+check_for_valid_ip_address() {
+  local lIP_ADDRESS="${1:-}"
+  local lOCTET=""
+  local -a lOCTETS_ARR=()
+  if [[ ! "${lIP_ADDRESS}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    return 1
+  fi
+  IFS='.' read -r -a lOCTETS_ARR <<<"${lIP_ADDRESS}"
+  for lOCTET in "${lOCTETS_ARR[@]}"; do
+    if [[ ! "${lOCTET}" =~ ^(0|[1-9][0-9]{0,2})$ ]]; then
+      return 1
+    fi
+    if ((10#${lOCTET} > 255)); then
+      return 1
+    fi
+  done
+  return 0
 }

@@ -12,6 +12,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner
+# Contributor(s): Mihai Macarie
 
 # Description:  Extracts firmware with unblob to the module log directory.
 #               IMPORTANT: The results are currently not used for further analysis.
@@ -35,7 +36,7 @@ P55_unblob_extractor() {
   fi
 
   # If we have found a linux filesystem we do not need an unblob extraction
-  if [[ ${RTOS} -eq 0 ]]; then
+  if [[ "${RTOS}" -eq 0 ]]; then
     module_end_log "${FUNCNAME[0]}" 0
     return
   fi
@@ -86,7 +87,7 @@ P55_unblob_extractor() {
   if [[ "${SBOM_MINIMAL:-0}" -ne 1 ]]; then
     print_ln
     if [[ -d "${lOUTPUT_DIR_UNBLOB}" ]]; then
-      remove_uprintable_paths "${lOUTPUT_DIR_UNBLOB}"
+      remove_uprintable_paths "${lOUTPUT_DIR_UNBLOB}" || return 1
       mapfile -t lFILES_UNBLOB_ARR < <(find "${lOUTPUT_DIR_UNBLOB}" -type f ! -name "*.raw")
     fi
 
@@ -131,7 +132,7 @@ P55_unblob_extractor() {
     fi
 
     if [[ -d "${lOUTPUT_DIR_BINWALK}" ]]; then
-      remove_uprintable_paths "${lOUTPUT_DIR_BINWALK}"
+      remove_uprintable_paths "${lOUTPUT_DIR_BINWALK}" || return 1
       mapfile -t lFILES_BINWALK_ARR < <(find "${lOUTPUT_DIR_BINWALK}" -type f ! -name "*.raw")
     fi
 
@@ -180,7 +181,7 @@ unblobber() {
   print_output "[*] Extracting binary blob ${ORANGE}$(basename "${lFIRMWARE_PATH}")${NC} to directory ${ORANGE}${lOUTPUT_DIR_UNBLOB}${NC}"
 
   if ! [[ -d "${lOUTPUT_DIR_UNBLOB}" ]]; then
-    mkdir -p "${lOUTPUT_DIR_UNBLOB}"
+    mkdir -p -- "${lOUTPUT_DIR_UNBLOB}"
   fi
 
   if [[ "${lVERBOSE}" -eq 1 ]]; then

@@ -12,6 +12,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner
+# Contributor(s): Mihai Macarie
 
 # Description: Mounts and extracts extX images (currently binwalk destroys the permissions and the symlinks)
 # Pre-checker threading mode - if set to 1, these modules will run in threaded mode
@@ -67,14 +68,15 @@ ext_extractor() {
     fi
 
     print_output "[*] Copying ${ORANGE}${lTMP_EXT_MOUNT}${NC} to firmware tmp directory (${lEXTRACTION_DIR_})"
-    mkdir -p "${lEXTRACTION_DIR_}"
-    cp -pri "${lTMP_EXT_MOUNT}"/* "${lEXTRACTION_DIR_}"
+    mkdir -p -- "${lEXTRACTION_DIR_}"
+    cp -pri -- "${lTMP_EXT_MOUNT}"/* "${lEXTRACTION_DIR_}"
     print_ln
     print_output "[*] Using the following firmware directory (${ORANGE}${lEXTRACTION_DIR_}${NC}) as base directory:"
     find "${lEXTRACTION_DIR_}" -xdev -maxdepth 1 -ls | tee -a "${LOG_FILE}"
     print_ln
     print_output "[*] Unmounting ${ORANGE}${lTMP_EXT_MOUNT}${NC} directory"
 
+    remove_uprintable_paths "${lEXTRACTION_DIR_}" || return 1
     mapfile -t lFILES_EXT_ARR < <(find "${lEXTRACTION_DIR_}" -type f ! -name "*.raw")
     print_output "[*] Extracted ${ORANGE}${#lFILES_EXT_ARR[@]}${NC} files from the EXT filesystem."
     print_output "[*] Populating backend data for ${ORANGE}${#lFILES_EXT_ARR[@]}${NC} files ... could take some time" "no_log"
@@ -90,5 +92,5 @@ ext_extractor() {
     write_csv_log "EXT filesystem extractor" "${lEXT_PATH_}" "${lEXTRACTION_DIR_}" "${#lFILES_EXT_ARR[@]}" "NA"
   fi
   umount "${lTMP_EXT_MOUNT}" || true
-  [[ -d "${lTMP_EXT_MOUNT}" ]] && rm -rf "${lTMP_EXT_MOUNT}"
+  [[ -d "${lTMP_EXT_MOUNT}" ]] && rm -rf -- "${lTMP_EXT_MOUNT:?lTMP_EXT_MOUNT is unset or empty}"
 }

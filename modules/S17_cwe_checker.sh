@@ -24,7 +24,7 @@
 export THREAD_PRIO=0
 
 S17_cwe_checker() {
-  if [[ ${BINARY_EXTENDED} -eq 1 ]]; then
+  if [[ "${BINARY_EXTENDED}" -eq 1 ]]; then
     module_log_init "${FUNCNAME[0]}"
     module_title "Check binaries for vulnerabilities with cwe-checker"
     pre_module_reporter "${FUNCNAME[0]}"
@@ -62,15 +62,37 @@ cwe_check() {
   local lNAME=""
   local lBINS_CHECKED_ARR=()
 
+  # the blacklist elements are handled as regex in the form *pattern*
+  local lBIN_BLACKLIST_ARR=("libc" "coreutils")
+
+  # start timer for track the runtime of the module
+  export SECONDS=0
+  # default behavior:
+  # Option 1: no minimum runtime -> MAX_EXT_CHECK_BINS binaries are tested
+  # Option 2: define S16_MIN_RUNTIME (in seconds) in scan-profile
+  local lS17_MIN_RUNTIME="${S17_MIN_RUNTIME:-0}"
+  # if we have a AI_MIN_RUNTIME set and this is bigger then our current S16_MIN_RUNTIME we adjust S16 to the AI runtime
+  if [[ "${AI_OPTION}" -gt 0 ]]; then
+    AI_MIN_RUNTIME="$(convert_timeformat "${AI_MIN_RUNTIME:-0s}")"
+    if [[ "${lS17_MIN_RUNTIME}" -lt "${AI_MIN_RUNTIME}" ]]; then
+      print_output "[*] S17 - setting minimum runtime to AI_MIN_RUNTIME - ${AI_MIN_RUNTIME} seconds"
+      lS17_MIN_RUNTIME="${AI_MIN_RUNTIME}"
+    fi
+  fi
+
+  # we are going to use the lBINARIES_ARR for further analysis. This includes binaries with known usage of strcpy/system in the beginning
+  # Afterwards we add all the other binaries to ensure we are going to test everything if we have enough time
   local lBINARIES_ARR=()
+  local lBINARIES_ALL_ARR=()
   if [[ "$(wc -l 2>/dev/null <"${S13_CSV_LOG}")" -gt 1 ]] || [[ "$(wc -l 2>/dev/null <"${S14_CSV_LOG}")" -gt 1 ]] || [[ "$(wc -l 2>/dev/null <"${S15_CSV_LOG}")" -gt 1 ]]; then
     # usually binaries with strcpy or system calls are more interesting for further analysis
     # to keep analysis time low we only check these bins
     mapfile -t lBINARIES_ARR < <(grep -h "strcpy\|system" "${S13_CSV_LOG}" "${S14_CSV_LOG}" "${S15_CSV_LOG}" 2>/dev/null | sort -k 3 -t ';' -n -r | awk '{print $1}' || true)
     # we usually get a path like /sbin/httpd which is not resolvable and needs to queried again in the P99_CSV_LOG later on
-  else
-    mapfile -t lBINARIES_ARR < <(grep -v "ASCII text\|Unicode text" "${P99_CSV_LOG}" | grep "ELF" | cut -d ';' -f2 || true)
   fi
+  mapfile -t lBINARIES_ALL_ARR < <(grep -v "ASCII text\|Unicode text" "${P99_CSV_LOG}" | grep ";ELF" | cut -d ';' -f2 || true)
+  # as we do duplicate checking later on we do not care about duplicate entries now
+  lBINARIES_ARR=("${lBINARIES_ARR[@]}" "${lBINARIES_ALL_ARR[@]}")
 
   for lBIN_TO_CHECK in "${lBINARIES_ARR[@]}"; do
     if [[ -f "${BASE_LINUX_FILES}" ]]; then
@@ -81,6 +103,13 @@ cwe_check() {
         continue
       fi
     fi
+
+    local lBIN_BLACKLIST=""
+    for lBIN_BLACKLIST in "${lBIN_BLACKLIST_ARR[@]}"; do
+      if [[ "${lNAME}" == *"${lBIN_BLACKLIST}"* ]]; then
+        continue 2
+      fi
+    done
 
     # do not try to analyze kernel modules:
     [[ "${lBIN_TO_CHECK}" == *".ko" ]] && continue
@@ -104,16 +133,21 @@ cwe_check() {
     if [[ $(grep -i -c S09_ "${LOG_DIR}"/"${MAIN_LOG_FILE}" || true) -eq 1 ]]; then
       local lMAX_MOD_THREADS=1
     fi
-    cwe_checker_threaded "${lBIN_TO_CHECK}" &
+    cwe_checker_threaded "${lBIN_TO_CHECK}" "${lS17_MIN_RUNTIME}" "${SECONDS}" &
     local lTMP_PID="$!"
     lWAIT_PIDS_S17+=("${lTMP_PID}")
     max_pids_protection "${lMAX_MOD_THREADS}" lWAIT_PIDS_S17
     # we stop checking after the first MAX_EXT_CHECK_BINS binaries
     # usually these are non-linux binaries and ordered by the usage of system/strcpy legacy usages
-    if [[ "${#lBINS_CHECKED_ARR[@]}" -ge "${MAX_EXT_CHECK_BINS}" ]] && [[ "${FULL_TEST}" -ne 1 ]]; then
-      print_output "[*] ${MAX_EXT_CHECK_BINS} binaries already analysed - ending cwe_checker binary analysis now." "no_log"
-      print_output "[*] For complete analysis enable FULL_TEST." "no_log"
-      break
+    local lMODULE_RUNTIME="${SECONDS}"
+    if [[ "${lMODULE_RUNTIME}" -gt "${lS17_MIN_RUNTIME}" ]]; then
+      print_error "[*] $(print_date) - S17 Module runtime limitation kicked - ${lMODULE_RUNTIME} -gt ${lS17_MIN_RUNTIME}s"
+      # we stop checking after testing MAX_EXT_CHECK_BINS binaries
+      if [[ "${#lBINS_CHECKED_ARR[@]}" -ge "${MAX_EXT_CHECK_BINS}" ]] && [[ "${FULL_TEST}" -ne 1 ]]; then
+        print_output "[*] ${MAX_EXT_CHECK_BINS} binaries already analysed - ending cwe_checker binary analysis now." "no_log"
+        print_output "[*] For complete analysis enable FULL_TEST." "no_log"
+        break
+      fi
     fi
   done
 
@@ -122,7 +156,8 @@ cwe_check() {
 
 cwe_checker_threaded() {
   local lBINARY="${1:-}"
-  local lCWE_OUT=()
+  local lS17_CWE_CHECKER_MAX_RUNTIME="${2:-}"
+  local lCWE_OUT_ARR=()
   local lCWE_LINE=""
   local lCWE=""
   local lCWE_DESC=""
@@ -152,43 +187,82 @@ cwe_checker_threaded() {
     lCWE_CHECKER_OPTS_ARR+=("--bare-metal-config" "${lCWE_CHECKER_BARE_METAL_CFG}")
   fi
 
+  if [[ "${lS17_CWE_CHECKER_MAX_RUNTIME}" -eq 0 ]]; then
+    # CWE_CHECKER_RUNTIME includes unit
+    lS17_CWE_CHECKER_MAX_RUNTIME="${CWE_CHECKER_RUNTIME}"
+  else
+    lS17_CWE_CHECKER_MAX_RUNTIME=$((lS17_CWE_CHECKER_MAX_RUNTIME - SECONDS))
+    # minimum Ghidra runtime of 60 seconds
+    if [[ "${lS17_CWE_CHECKER_MAX_RUNTIME}" -lt 60 ]]; then
+      print_error "[*] Out of time for analyzing binary ${ORANGE}${lNAME} / ${lBINARY}${NC} with cwe_checker - skipping" "no_log"
+      return
+    else
+      # add unit for our calculated time
+      lS17_CWE_CHECKER_MAX_RUNTIME+="s"
+    fi
+  fi
+
+  print_output "[*] Starting cwe_checker for binary ${ORANGE}${lNAME}${NC} with runtime ${ORANGE}${lS17_CWE_CHECKER_MAX_RUNTIME}${NC}" "no_log"
   ulimit -Sv "${lMEM_LIMIT}"
-  timeout --preserve-status --signal SIGINT "${CWE_CHECKER_RUNTIME}" cwe_checker "${lBINARY}" --json --out "${lCWE_CHECKER_JSON_LOG_FILE}" "${lCWE_CHECKER_OPTS_ARR[@]}" || print_error "[-] CWE-checker run failed for ${lBINARY}"
+  timeout --preserve-status --signal SIGINT "${lS17_CWE_CHECKER_MAX_RUNTIME}" cwe_checker "${lBINARY}" --json --out "${lCWE_CHECKER_JSON_LOG_FILE}" "${lCWE_CHECKER_OPTS_ARR[@]}" || print_error "[-] CWE-checker run failed for ${lBINARY}"
 
   ulimit -Sv unlimited
-  print_output "[*] Tested ${ORANGE}$(print_path "${lBINARY}")${NC}" "no_log"
+  print_output "[*] Tested ${ORANGE}$(print_path "${lBINARY}")${NC} with cwe_checker" "no_log"
 
   if [[ -s "${lCWE_CHECKER_JSON_LOG_FILE}" ]]; then
     log_bin_hardening "${lBINARY}" "${lCWE_CHECKER_TXT_LOG_FILE}"
     sub_module_title "CWE-Checker results for ${lNAME}" "${lCWE_CHECKER_TXT_LOG_FILE}"
-    # The following is just for getting some nice output to the cli interface:
-    jq -r '.[] | "\(.name) - \(.description)"' "${lCWE_CHECKER_JSON_LOG_FILE}" | sort -u || true
+    printf "${GREEN_}\t%-9.9s | %-15.15s | %-15.15s | %-15.15s | %s${NC}\n" "CWE id" "address" "tids" "symbols" "description" >>"${lCWE_CHECKER_TXT_LOG_FILE}"
 
     # get the total number of vulnerabilities in the binary
     lCWE_TOTAL_CNT=$(jq -r '.[] | "\(.name) \(.description)"' "${lCWE_CHECKER_JSON_LOG_FILE}" | wc -l || true)
-    mapfile -t lCWE_OUT < <(jq -r '.[] | "\(.name) \(.description)"' "${lCWE_CHECKER_JSON_LOG_FILE}" | cut -d\) -f1 | tr -d '(' | sort -u || true)
+    mapfile -t lCWE_OUT_ARR < <(jq -r '.[] | "\(.name) \(.description)"' "${lCWE_CHECKER_JSON_LOG_FILE}" | cut -d\) -f1 | tr -d '(' | sort -u || true)
     # this is the logging after every tested file
-    if [[ ${#lCWE_OUT[@]} -ne 0 ]]; then
+    if [[ ${#lCWE_OUT_ARR[@]} -ne 0 ]]; then
       print_ln
 
-      jq -r '.[] | "\(.name) - \(.addresses) - \(.tids) - \(.symbols) - \(.description)"' "${lCWE_CHECKER_JSON_LOG_FILE}" | tr -d ']["' >>"${lCWE_CHECKER_TXT_LOG_FILE}" || true
+      local lCWE_CHECKER_JSON_LOG_ARR=()
+      local lCWE_ID=""
+      local lADDRESSES=""
+      local lTIDS=""
+      local lSYMB=""
+      local lDESC=""
+      local lS17_LOG_ENTRY_LINE=""
+
+      mapfile -t lCWE_CHECKER_JSON_LOG_ARR < <(jq -c '.[]' "${lCWE_CHECKER_JSON_LOG_FILE}" || true)
+
+      for lS17_LOG_ENTRY_LINE in "${lCWE_CHECKER_JSON_LOG_ARR[@]}"; do
+        lCWE_ID=$(jq -r '.name' <<<"${lS17_LOG_ENTRY_LINE}" || true)
+        lADDRESSES=$(jq -cr '.addresses[]' <<<"${lS17_LOG_ENTRY_LINE}" || true)
+        lADDRESSES="${lADDRESSES//[\"\[\]]/}"
+        lADDRESSES="${lADDRESSES//$'\n'/,}"
+        lTIDS=$(jq -r '.tids[]' <<<"${lS17_LOG_ENTRY_LINE}" || true)
+        lTIDS="${lTIDS//[\"\[\]]/}"
+        lTIDS="${lTIDS//$'\n'/,}"
+        lSYMB=$(jq -r '.symbols[]' <<<"${lS17_LOG_ENTRY_LINE}" || true)
+        lSYMB="${lSYMB//[\"\[\]]/}"
+        lSYMB="${lSYMB//$'\n'/,}"
+        lDESC=$(jq -r '.description' <<<"${lS17_LOG_ENTRY_LINE}" || true)
+        lDESC="${lDESC//[\"\[\]\(\)]/}"
+        printf "\t%-9.9s | %-15.15s | %-15.15s | %-15.15s | %s\n" "${lCWE_ID:-NA}" "${lADDRESSES:-NA}" "${lTIDS:-NA}" "${lSYMB:-NA}" "${lDESC:-NA}" | tee -a "${lCWE_CHECKER_TXT_LOG_FILE}"
+      done
 
       # check for known linux files
       if [[ -f "${BASE_LINUX_FILES}" ]]; then
         # if we have the base linux config file we are checking it:
         if grep -E -q "^${lNAME}$" "${BASE_LINUX_FILES}" 2>/dev/null; then
           # shellcheck disable=SC2153
-          print_output "[+] cwe-checker found a total of ${ORANGE}${lCWE_TOTAL_CNT:-0}${GREEN} and ${ORANGE}${#lCWE_OUT[@]}${GREEN} different security issues in ${ORANGE}${lNAME}${GREEN} (${CYAN}common linux file: yes${GREEN}):${NC}" "" "${lCWE_CHECKER_TXT_LOG_FILE}"
+          print_output "[+] cwe-checker found a total of ${ORANGE}${lCWE_TOTAL_CNT:-0}${GREEN} and ${ORANGE}${#lCWE_OUT_ARR[@]}${GREEN} different security issues in ${ORANGE}${lNAME}${GREEN} (${CYAN}common linux file: yes${GREEN}):${NC}" "" "${lCWE_CHECKER_TXT_LOG_FILE}"
         else
-          print_output "[+] cwe-checker found a total of ${ORANGE}${lCWE_TOTAL_CNT:-0}${GREEN} and ${ORANGE}${#lCWE_OUT[@]}${GREEN} different security issues in ${ORANGE}${lNAME}${GREEN} (${RED}common linux file: no${GREEN}):${NC}" "" "${lCWE_CHECKER_TXT_LOG_FILE}"
+          print_output "[+] cwe-checker found a total of ${ORANGE}${lCWE_TOTAL_CNT:-0}${GREEN} and ${ORANGE}${#lCWE_OUT_ARR[@]}${GREEN} different security issues in ${ORANGE}${lNAME}${GREEN} (${RED}common linux file: no${GREEN}):${NC}" "" "${lCWE_CHECKER_TXT_LOG_FILE}"
         fi
       else
-        print_output "[+] cwe-checker found a total of ${ORANGE}${lCWE_TOTAL_CNT:-0}${GREEN} and ${ORANGE}${#lCWE_OUT[@]}${GREEN} different security issues in ${ORANGE}${lNAME}${GREEN}:${NC}" "" "${lCWE_CHECKER_TXT_LOG_FILE}"
+        print_output "[+] cwe-checker found a total of ${ORANGE}${lCWE_TOTAL_CNT:-0}${GREEN} and ${ORANGE}${#lCWE_OUT_ARR[@]}${GREEN} different security issues in ${ORANGE}${lNAME}${GREEN}:${NC}" "" "${lCWE_CHECKER_TXT_LOG_FILE}"
       fi
 
-      for lCWE_LINE in "${lCWE_OUT[@]}"; do
-        lCWE="$(echo "${lCWE_LINE}" | awk '{print $1}')"
-        lCWE_DESC="$(echo "${lCWE_LINE}" | cut -d\  -f2-)"
+      for lCWE_LINE in "${lCWE_OUT_ARR[@]}"; do
+        lCWE="$(awk '{print $1}' <<<"${lCWE_LINE}")" # field 1
+        lCWE_DESC="${lCWE_LINE#* }"                  # field 2-
         lCWE_CNT="$(grep -c "${lCWE}" "${lCWE_CHECKER_JSON_LOG_FILE}" 2>/dev/null || true)"
         # get a list of all affected addresses:
         lADDRESSES="$(jq -cr '.[]? | select(.name=="'"${lCWE}"'") | .addresses' "${lCWE_CHECKER_JSON_LOG_FILE}" | tr -d '\n' | sed 's/\]\[/,/g')"
@@ -198,13 +272,13 @@ cwe_checker_threaded() {
       done
     else
       print_output "[-] Nothing found in ${ORANGE}${lNAME}${NC}" "no_log"
-      rm -f "${lCWE_CHECKER_JSON_LOG_FILE}" 2>/dev/null
+      rm -f -- "${lCWE_CHECKER_JSON_LOG_FILE}" 2>/dev/null
     fi
   fi
 
   if [[ -f "${LOG_FILE}" ]]; then
     cat "${LOG_FILE}" >>"${lOLD_LOG_FILE}"
-    rm "${LOG_FILE}" 2>/dev/null
+    rm -- "${LOG_FILE}" 2>/dev/null
   fi
   LOG_FILE="${lOLD_LOG_FILE}"
 }
@@ -227,8 +301,8 @@ final_cwe_log() {
         sub_module_title "Results - CWE-checker binary analysis"
         print_output "[+] cwe-checker found a total of ${ORANGE}${lTOTAL_CWE_CNT}${GREEN} of the following security issues in ${ORANGE}${lTESTED_BINS}${GREEN} tested binaries:"
         for lCWE_LINE in "${lCWE_OUT_ARR[@]}"; do
-          lCWE_ID="$(echo "${lCWE_LINE}" | awk '{print $1}')"
-          lCWE_DESC="$(echo "${lCWE_LINE}" | cut -d\  -f2-)"
+          lCWE_ID="$(awk '{print $1}' <<<"${lCWE_LINE}")" # field 1
+          lCWE_DESC="${lCWE_LINE#* }"                     # field 2-
           # do not change this to grep -c!
           # shellcheck disable=SC2126
           lCWE_CNT="$(grep "${lCWE_ID}" "${LOG_PATH_MODULE}"/cwe_*.json 2>/dev/null | wc -l || true)"

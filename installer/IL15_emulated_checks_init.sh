@@ -72,6 +72,11 @@ IL15_emulated_checks_init() {
     print_tool_info "libasound2t64"
     print_tool_info "npm"
 
+    # nikto
+    print_tool_info "libjson-perl"
+    print_tool_info "libxml-writer-perl"
+    print_tool_info "libnet-ssleay-perl"
+
     if [[ "${LIST_DEP}" -eq 1 ]] || [[ "${DOCKER_SETUP}" -eq 1 ]]; then
       ANSWER=("n")
     else
@@ -98,13 +103,13 @@ IL15_emulated_checks_init() {
       cd "${HOME_PATH}" || (echo "Could not install EMBA component chrome-headless-shell@stable" && exit 1)
 
       # EMBAbite fuzzer used this:
-      # pip_install "upnpclient"
-      pip_install "lxml==5.3.1"
+      # pip_install "lxml==5.3.1"
       # pip_install helper function does not support further parameters
       # Todo: fix this
       pip_install "dateutils"
       pip_install "ifaddr"
-      pip3 install "upnpclient" --no-dependencies lxml
+      # pip3 install "upnpclient" --no-dependencies lxml
+      pip_install "upnpclient"
       ;;
     esac
   fi

@@ -58,7 +58,7 @@ S08_submodule_debian_pkg_mgmt_parser() {
 
       if grep -q "Package: " "${lPACKAGE_FILE}"; then
         if [[ ! -d "${LOG_PATH_MODULE}"/dpkg_tmp_db ]]; then
-          mkdir "${LOG_PATH_MODULE}"/dpkg_tmp_db
+          mkdir -- "${LOG_PATH_MODULE}"/dpkg_tmp_db
         fi
 
         # split lPACKAGE_FILE on empty lines into separate package entry files for further processing
@@ -162,7 +162,7 @@ debian_status_files_analysis_threader() {
   fi
   lPURL_IDENTIFIER=$(build_purl_identifier "${lOS_IDENTIFIED:-NA}" "deb" "${lPACKAGE:-NA}" "${lVERSION:-NA}" "${lAPP_ARCH:-NA}")
   lAPP_VENDOR="${lPACKAGE}"
-  lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lAPP_VENDOR}:${lPACKAGE}:${lVERSION}:*:*:*:*:*:*"
+  lCPE_IDENTIFIER=$(build_cpe_identifier ":${lAPP_VENDOR}:${lPACKAGE}:${lVERSION}")
   local lSTRIPPED_VERSION="::${lPACKAGE}:${lVERSION:-NA}"
 
   # add source file path information to our properties array:

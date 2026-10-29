@@ -12,6 +12,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner
+# Contributor(s): Mihai Macarie
 
 # Description:  Extracts firmware with binwalk to the module log directory.
 #               This module is a fallback module for the very rare case that our extraction process was failing
@@ -81,7 +82,7 @@ P50_binwalk_extractor() {
 
   print_ln
   if [[ -d "${lOUTPUT_DIR_BINWALK}" ]]; then
-    remove_uprintable_paths "${lOUTPUT_DIR_BINWALK}"
+    remove_uprintable_paths "${lOUTPUT_DIR_BINWALK}" || return 1
     mapfile -t lFILES_BINWALK_ARR < <(find "${lOUTPUT_DIR_BINWALK}" -type f)
   fi
 
@@ -129,27 +130,4 @@ linux_basic_identification() {
     fi
   fi
   echo "${lLINUX_PATH_COUNTER_BINWALK}"
-}
-
-remove_uprintable_paths() {
-  local lOUTPUT_DIR_BINWALK="${1:-}"
-
-  local lFIRMWARE_UNPRINT_FILES_ARR=()
-  local lFW_FILE=""
-  local lNEW_FILE=""
-
-  mapfile -t lFIRMWARE_UNPRINT_FILES_ARR < <(find "${lOUTPUT_DIR_BINWALK}" -name '*[^[:print:]]*')
-  if [[ "${#lFIRMWARE_UNPRINT_FILES_ARR[@]}" -gt 0 ]]; then
-    print_output "[*] Unprintable characters detected in extracted files -> cleanup started"
-    for lFW_FILE in "${lFIRMWARE_UNPRINT_FILES_ARR[@]}"; do
-      print_output "[*] Cleanup of ${lFW_FILE} with unprintable characters"
-      # print_output "[*] Moving ${lFW_FILE} to ${lFW_FILE//[![:print:]]/_}"
-      # mv "${lFW_FILE}" "${lFW_FILE//[![:print:]]/_}" || true
-      lNEW_FILE=$(iconv -f UTF-8 -t ASCII//TRANSLIT <<<"${lFW_FILE}" || true)
-      if [[ -n "${lNEW_FILE}" ]]; then
-        print_output "[*] Moving ${lFW_FILE} to ${lNEW_FILE}"
-        mv "${lFW_FILE}" "${lNEW_FILE}" || print_output "[-] Cleanup of file ${lFW_FILE} not possible"
-      fi
-    done
-  fi
 }

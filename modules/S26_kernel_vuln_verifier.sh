@@ -52,6 +52,8 @@ S26_kernel_vuln_verifier() {
   # extract kernel version
   get_kernel_version_csv_data_s24 "${S24_CSV_LOG}"
 
+  write_csv_log "CVE" "CVSS" "kernel version" "vulnerable path" "verification method"
+
   local lKERNEL_DATA=""
   local lKERNEL_ELF_EMBA_ARR=()
   local lALL_KVULNS_ARR=()
@@ -76,14 +78,15 @@ S26_kernel_vuln_verifier() {
     # we check for a kernel configuration
     for lKERNEL_DATA in "${lKERNEL_ELF_EMBA_ARR[@]}"; do
       # print_output "[*] KERNEL_DATA: ${lKERNEL_DATA}" "no_log"
-      if [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f5)" == "/"* ]]; then
+      if [[ "$(cut -d ';' -f5 <<<"${lKERNEL_DATA}")" == "/"* ]]; then
         # field 5 is the kernel config file
-        KERNEL_CONFIG_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f5)
+        KERNEL_CONFIG_PATH="${lKERNEL_DATA#*;*;*;*;}"
+        KERNEL_CONFIG_PATH="${KERNEL_CONFIG_PATH%%;*}" # field 5
         print_output "[+] Found kernel configuration file: ${ORANGE}${KERNEL_CONFIG_PATH}${NC}"
         # we use the first entry with a kernel config detected
-        if [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f1)" == "/"* ]]; then
+        if [[ "${lKERNEL_DATA%%;*}" == "/"* ]]; then
           # field 1 is the matching kernel elf file - sometimes we have a config but no elf file
-          KERNEL_ELF_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f1)
+          KERNEL_ELF_PATH="${lKERNEL_DATA%%;*}" # field 1
           print_output "[+] Found kernel binary file: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
           lK_FOUND=1
           break
@@ -98,10 +101,10 @@ S26_kernel_vuln_verifier() {
     if [[ "${lK_FOUND}" -ne 1 ]]; then
       for lKERNEL_DATA in "${lKERNEL_ELF_EMBA_ARR[@]}"; do
         # check for some path indicator for the elf file
-        if [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f1)" == "/"* ]]; then
+        if [[ "${lKERNEL_DATA%%;*}" == "/"* ]]; then
           # now we check for init entries
-          if ! [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f2)" == "NA" ]]; then
-            KERNEL_ELF_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f1)
+          if ! [[ "$(cut -d ';' -f2 <<<"${lKERNEL_DATA}")" == "NA" ]]; then
+            KERNEL_ELF_PATH="${lKERNEL_DATA%%;*}" # field 1
             # we use the first entry with a kernel init detected
             print_output "[+] Found kernel binary file with init entry: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
             lK_FOUND=1
@@ -114,11 +117,11 @@ S26_kernel_vuln_verifier() {
     if [[ "${lK_FOUND}" -ne 1 ]]; then
       for lKERNEL_DATA in "${lKERNEL_ELF_EMBA_ARR[@]}"; do
         # check for some path indicator for the elf file
-        if [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f1)" == "/"* ]]; then
+        if [[ "${lKERNEL_DATA%%;*}" == "/"* ]]; then
           # this means we have no kernel configuration found
           # and no init entry -> we just use the first valid elf file
-          if ! [[ "$(echo "${lKERNEL_DATA}" | cut -d\; -f1)" == "NA" ]]; then
-            KERNEL_ELF_PATH=$(echo "${lKERNEL_DATA}" | cut -d\; -f1)
+          if ! [[ "${lKERNEL_DATA%%;*}" == "NA" ]]; then
+            KERNEL_ELF_PATH="${lKERNEL_DATA%%;*}" # field 1
             print_output "[+] Found kernel binary file: ${ORANGE}${KERNEL_ELF_PATH}${NC}"
             # we use the first entry as final resort
             lK_FOUND=1
@@ -144,12 +147,12 @@ S26_kernel_vuln_verifier() {
 
     if ! [[ -f "${KERNEL_ELF_PATH}" ]]; then
       print_output "[-] Warning: Kernel ELF file not found"
-      module_end_log "${FUNCNAME[0]}" "${NEG_LOG}"
+      module_end_log "${FUNCNAME[0]}" 0
       continue
     fi
     if ! [[ -v lK_VERSION ]]; then
       print_output "[-] Missing kernel version .. exit now"
-      module_end_log "${FUNCNAME[0]}" "${NEG_LOG}"
+      module_end_log "${FUNCNAME[0]}" 0
       continue
     fi
 
@@ -165,6 +168,9 @@ S26_kernel_vuln_verifier() {
 
     if [[ -f "${KERNEL_ELF_PATH}" ]]; then
       extract_kernel_arch "${KERNEL_ELF_PATH}"
+    fi
+    if [[ "${ORIG_K_ARCH}" == "NA" ]]; then
+      print_output "[-] No valid kernel architecture identified for kernel ${lK_VERSION}"
     fi
 
     if [[ "${lK_VERSION}" == *".0" ]]; then
@@ -202,7 +208,7 @@ S26_kernel_vuln_verifier() {
     write_link "${LOG_DIR}/kernel_downloader.log"
 
     lKERNEL_DIR="${LOG_PATH_MODULE}/linux-${lK_VERSION_KORG}"
-    [[ -d "${lKERNEL_DIR}" ]] && rm -rf "${lKERNEL_DIR}"
+    [[ -d "${lKERNEL_DIR}" ]] && rm -rf -- "${lKERNEL_DIR:?lKERNEL_DIR is unset or empty}"
     if ! [[ -d "${lKERNEL_DIR}" ]] && [[ "$(file "${lKERNEL_ARCH_PATH}/linux-${lK_VERSION_KORG}.tar.gz")" == *"gzip compressed data"* ]]; then
       print_output "[*] Kernel version ${ORANGE}${lK_VERSION}${NC} extraction ... "
       tar -xzf "${lKERNEL_ARCH_PATH}/linux-${lK_VERSION_KORG}.tar.gz" -C "${LOG_PATH_MODULE}"
@@ -279,6 +285,7 @@ S26_kernel_vuln_verifier() {
     print_ln
 
     local lVULN=""
+    local lWAIT_PIDS_S26_ARR_MAIN=()
     for lVULN in "${lALL_KVULNS_ARR[@]}"; do
       vuln_checker_threader "${lVULN}" &
       local lTMP_PID="$!"
@@ -332,7 +339,7 @@ S26_kernel_vuln_verifier() {
         local lVULN_SUMMARY_ENTRY=""
         while read -r lVULN_SUMMARY_ENTRY; do
           local lkVERSION=""
-          lkVERSION=$(echo "${lVULN_SUMMARY_ENTRY}" | cut -d ':' -f3)
+          lkVERSION=$(cut -d ':' -f3 <<<"${lVULN_SUMMARY_ENTRY}") # field 3
           # remove all spaces
           lkVERSION="${lkVERSION//\ /}"
           if grep -q "${lkVERSION}" "${LOG_PATH_MODULE}/vuln_summary_new.txt"; then
@@ -359,7 +366,7 @@ vuln_checker_threader() {
   local lK_PATH="missing vulnerability path from advisory"
 
   # print_output "[*] VULN data: ${lVULN}" "no_log"
-  lCVE=$(echo "${lVULN}" | cut -d, -f4)
+  lCVE=$(cut -d ',' -f4 <<<"${lVULN}") # field 4
   if ! [[ "${lCVE}" == "CVE-"* ]]; then
     print_output "[-] No CVE identifier extracted for ${lVULN} ..."
     return
@@ -368,7 +375,7 @@ vuln_checker_threader() {
   print_output "${lOUTx}" "no_log"
   write_log "${lOUTx}" "${LOG_PATH_MODULE}/kernel_verification_${lK_VERSION}_detailed.log"
 
-  lCVSS3="$(echo "${lVULN}" | cut -d, -f6)"
+  lCVSS3="$(cut -d ',' -f6 <<<"${lVULN}")" # field 6
   # lSUMMARY="$(echo "${lVULN}" | cut -d: -f6-)"
   lSUMMARY=$(jq -r '.descriptions[]? | select(.lang=="en") | .value' "${NVD_DIR}/${lCVE%-*}/${lCVE:0:11}"*"xx/${lCVE}.json" 2>/dev/null || true)
 
@@ -483,6 +490,10 @@ extract_kernel_arch() {
   if [[ "${ORIG_K_ARCH}" == *"Intel"* ]]; then
     ORIG_K_ARCH="x86"
   fi
+  if [[ "${ORIG_K_ARCH}" == *"data"* ]]; then
+    ORIG_K_ARCH="NA"
+    return
+  fi
 
   ORIG_K_ARCH="${ORIG_K_ARCH,,}"
   ORIG_K_ARCH="${ORIG_K_ARCH//\ /}"
@@ -506,6 +517,7 @@ symbol_verifier() {
       print_output "${lOUTx}"
       write_log "${lOUTx}" "${LOG_PATH_MODULE}/kernel_verification_${lK_VERSION}_detailed.log"
       echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - exported symbol verified - ${lK_PATH}" >>"${LOG_PATH_MODULE}""/${lCVE}_symbol_verified.txt"
+      write_csv_log "${lCVE}" "${lCVSS}" "${lK_VERSION}" "${lK_PATH}" "exported symbol"
       lVULN_FOUND=1
       break
     fi
@@ -523,6 +535,7 @@ symbol_verifier() {
       print_output "${lOUTx}"
       write_log "${lOUTx}" "${LOG_PATH_MODULE}/kernel_verification_${lK_VERSION}_detailed.log"
       echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - exported symbol verified (gpl) - ${lK_PATH}" >>"${LOG_PATH_MODULE}""/${lCVE}_symbol_verified.txt"
+      write_csv_log "${lCVE}" "${lCVSS}" "${lK_VERSION}" "${lK_PATH}" "exported symbol (GPL)"
       lVULN_FOUND=1
       break
     fi
@@ -541,6 +554,7 @@ compile_verifier() {
   if grep -q "${lK_PATH}" "${LOG_PATH_MODULE}"/kernel-compile-files_verified.log; then
     print_output "[+] ${ORANGE}${lCVE}${GREEN} (${ORANGE}${lCVSS}${GREEN}) - ${ORANGE}${lK_PATH}${GREEN} verified - compiled path${NC}"
     echo "${lCVE} (${lCVSS}) - ${lK_VERSION} - compiled path verified - ${lK_PATH}" >>"${LOG_PATH_MODULE}""/${lCVE}_compiled_verified.txt"
+    write_csv_log "${lCVE}" "${lCVSS}" "${lK_VERSION}" "${lK_PATH}" "compiled path"
   fi
 }
 
@@ -625,8 +639,8 @@ report_kvulns_csv() {
   local lCVE_SYMBOL_FOUND=0
   local lCVE_COMPILE_FOUND=0
 
-  lCVE=$(echo "${lVULN}" | cut -d, -f4)
-  lCVSS="$(echo "${lVULN}" | cut -d, -f6)"
+  lCVE=$(cut -d ',' -f4 <<<"${lVULN}")    # field 4
+  lCVSS="$(cut -d ',' -f6 <<<"${lVULN}")" # field 6
   lCVE_SYMBOL_FOUND=$(find "${LOG_PATH_MODULE}" -maxdepth 1 -name "${lCVE}_symbol_verified.txt" | wc -l)
   lCVE_COMPILE_FOUND=$(find "${LOG_PATH_MODULE}" -maxdepth 1 -name "${lCVE}_compiled_verified.txt" | wc -l)
   write_log "${lK_VERSION};${ORIG_K_ARCH};${lCVE};NA;${lCVSS};${lCVE_SYMBOL_FOUND:-0};${lCVE_COMPILE_FOUND:-0}" "${LOG_PATH_MODULE}"/cve_results_kernel_"${lK_VERSION}".csv
@@ -744,9 +758,9 @@ final_log_kernel_vulns() {
     print_ln
     print_output "[+] Verified CRITICAL CVEs: ${ORANGE}${#lCVE_VERIFIED_ONE_CRITICAL_ARR[@]}${GREEN} (one mechanism succeeded)"
     for lCVE_VERIFIED_ONE_CRITICAL in "${lCVE_VERIFIED_ONE_CRITICAL_ARR[@]}"; do
-      lCVE_CRITICAL=$(echo "${lCVE_VERIFIED_ONE_CRITICAL}" | cut -d\; -f3)
-      lCVSS2_CRITICAL=$(echo "${lCVE_VERIFIED_ONE_CRITICAL}" | cut -d\; -f4)
-      lCVSS3_CRITICAL=$(echo "${lCVE_VERIFIED_ONE_CRITICAL}" | cut -d\; -f5)
+      lCVE_CRITICAL=$(cut -d ';' -f3 <<<"${lCVE_VERIFIED_ONE_CRITICAL}")   # field 3
+      lCVSS2_CRITICAL=$(cut -d ';' -f4 <<<"${lCVE_VERIFIED_ONE_CRITICAL}") # field 4
+      lCVSS3_CRITICAL=$(cut -d ';' -f5 <<<"${lCVE_VERIFIED_ONE_CRITICAL}") # field 5
       # disabled because it is too slow
       # identify_exploits "${lCVE_CRITICAL}"
       if [[ "${EXPLOIT_DETECTED:-"no"}" == "yes" ]] || [[ "${POC_DETECTED:-"no"}" == "yes" ]]; then
@@ -761,9 +775,9 @@ final_log_kernel_vulns() {
     print_ln
     print_output "[+] Verified CRITICAL CVEs: ${ORANGE}${#lCVE_VERIFIED_OVERLAP_CRITICAL_ARR[@]}${GREEN} (both mechanisms overlap)"
     for lCVE_VERIFIED_OVERLAP_CRITICAL in "${lCVE_VERIFIED_OVERLAP_CRITICAL_ARR[@]}"; do
-      lCVE_CRITICAL=$(echo "${lCVE_VERIFIED_OVERLAP_CRITICAL}" | cut -d\; -f3)
-      lCVSS2_CRITICAL=$(echo "${lCVE_VERIFIED_OVERLAP_CRITICAL}" | cut -d\; -f4)
-      lCVSS3_CRITICAL=$(echo "${lCVE_VERIFIED_OVERLAP_CRITICAL}" | cut -d\; -f5)
+      lCVE_CRITICAL=$(cut -d ';' -f3 <<<"${lCVE_VERIFIED_OVERLAP_CRITICAL}")   # field 3
+      lCVSS2_CRITICAL=$(cut -d ';' -f4 <<<"${lCVE_VERIFIED_OVERLAP_CRITICAL}") # field 4
+      lCVSS3_CRITICAL=$(cut -d ';' -f5 <<<"${lCVE_VERIFIED_OVERLAP_CRITICAL}") # field 5
       # disabled because it is too slow
       # identify_exploits "${lCVE_CRITICAL}"
       if [[ "${EXPLOIT_DETECTED:-"no"}" == "yes" ]] || [[ "${POC_DETECTED:-"no"}" == "yes" ]]; then

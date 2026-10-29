@@ -57,6 +57,7 @@ S09_firmware_base_version_check() {
   local lFILE=""
   local lBIN=""
   local lBIN_FILE=""
+  local lFILE_ARR_PKG=()
 
   # set default confidence level
   # 1 -> very-low
@@ -70,10 +71,10 @@ S09_firmware_base_version_check() {
     # Debian:
     find "${LOG_DIR}"/firmware -path "*dpkg/info/*.list" -type f -print0 | xargs -r -0 -P 16 -I % sh -c 'cat "%"' | sort -u >"${LOG_PATH_MODULE}"/debian_known_files.txt || true
     # the extracted packages are used to further limit the static tests
-    find "${LOG_DIR}"/firmware -path "*dpkg/status" -type f -exec grep "^Package: " {} \; | awk '{print $2}' | sort -u >"${LOG_PATH_MODULE}"/debian_known_packages.txt || true
+    find "${LOG_DIR}"/firmware -path "*dpkg/status" -type f -exec grep -h "^Package: " {} + | awk '{print $2}' | sort -u >"${LOG_PATH_MODULE}"/debian_known_packages.txt || true
     # OpenWRT
     find "${LOG_DIR}"/firmware -path "*opkg/info/*.list" -type f -print0 | xargs -r -0 -P 16 -I % sh -c 'cat "%"' | sort -u >"${LOG_PATH_MODULE}"/openwrt_known_files.txt || true
-    find "${LOG_DIR}"/firmware -path "*opkg/status" -type f -exec grep "^Package: " {} \; | awk '{print $2}' | sort -u >"${LOG_PATH_MODULE}"/openwrt_known_packages.txt || true
+    find "${LOG_DIR}"/firmware -path "*opkg/status" -type f -exec grep -h "^Package: " {} + | awk '{print $2}' | sort -u >"${LOG_PATH_MODULE}"/openwrt_known_packages.txt || true
     # Todo: rpm
     # lRPM_DIR=$(find "${LOG_DIR}"/firmware -xdev -path "*rpm/Package" -type f -exec dirname {} \; | sort -u || true)
     # lRPM_DIR=$(find "${LOG_DIR}"/firmware -xdev -path "*rpm/rpmdb.sqlite" -type f -exec dirname {} \; | sort -u || true)
@@ -149,7 +150,7 @@ S09_firmware_base_version_check() {
   # lets start generating the strings from all our relevant binaries
   print_output "[*] Generate strings overview for static version analysis of ${ORANGE}${#FILE_ARR[@]}${NC} files ..."
   if ! [[ -d "${LOG_PATH_MODULE}"/strings_bins ]]; then
-    mkdir "${LOG_PATH_MODULE}"/strings_bins || true 2>/dev/null
+    mkdir -- "${LOG_PATH_MODULE}"/strings_bins || true 2>/dev/null
   fi
   export WAIT_PIDS_S09_ARR_tmp=()
   for lBIN in "${FILE_ARR[@]}"; do
@@ -224,13 +225,15 @@ S09_identifier_threadings() {
   mapfile -t lVENDOR_NAME_ARR < <(jq -r .vendor_names[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
   # shellcheck disable=SC2034
   mapfile -t lCSV_REGEX_ARR < <(jq -r .version_extraction[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
+
+  # we extract: ID/key\tGREP_COMMAND
   if [[ "${lPARSING_MODE_ARR[*]}" == *"strict"* ]]; then
-    mapfile -t lSTRICT_VERSION_IDENTIFIER_ARR < <(jq -r .strict_grep_commands[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
+    mapfile -t lSTRICT_VERSION_IDENTIFIER_ARR < <(jq -r '.strict_grep_commands | to_entries[] | "\(.key)\t\(.value)"' "${lVERSION_JSON_CFG}" 2>/dev/null || true)
   fi
   if [[ "${lPARSING_MODE_ARR[*]}" == *"zgrep"* ]]; then
-    mapfile -t lZGREP_VERSION_IDENTIFIER_ARR < <(jq -r .zgrep_grep_commands[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
+    mapfile -t lZGREP_VERSION_IDENTIFIER_ARR < <(jq -r '.zgrep_grep_commands | to_entries[] | "\(.key)\t\(.value)"' "${lVERSION_JSON_CFG}" 2>/dev/null || true)
   fi
-  mapfile -t lVERSION_IDENTIFIER_ARR < <(jq -r .grep_commands[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
+  mapfile -t lVERSION_IDENTIFIER_ARR < <(jq -r '.grep_commands | to_entries[] | "\(.key)\t\(.value)"' "${lVERSION_JSON_CFG}" 2>/dev/null || true)
   mapfile -t lAFFECTED_PATHS_ARR < <(jq -r .affected_paths[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
   # echo "Testing ${lRULE_IDENTIFIER} ..."
   # echo "lPARSING_MODE_ARR: ${lPARSING_MODE_ARR[*]}"
@@ -287,7 +290,10 @@ S09_identifier_threadings() {
     for lAPP_NAME in "${lAFFECTED_PATHS_ARR[@]}"; do
       local lSTRICT_BINS_ARR_TMP=()
       mapfile -t lSTRICT_BINS_ARR_TMP < <(awk -F';' -v pat="${lAPP_NAME#/}" 'index($2, pat) > 0' "${P99_CSV_LOG}" | sort -u || true)
-      lSTRICT_BINS_ARR+=("${lSTRICT_BINS_ARR_TMP[@]}")
+      if [[ "${#lSTRICT_BINS_ARR_TMP[@]}" -gt 0 ]]; then
+        lSTRICT_BINS_ARR+=("${lSTRICT_BINS_ARR_TMP[@]}")
+        # print_output "[*] Add ${lSTRICT_BINS_ARR_TMP[*]} to strict bin binary testing area for ${lRULE_IDENTIFIER}" "no_log"
+      fi
     done
 
     # before moving on we need to ensure our strings files are generated:
@@ -296,22 +302,26 @@ S09_identifier_threadings() {
     for lBINARY_ENTRY in "${lSTRICT_BINS_ARR[@]}"; do
       # as the STRICT_BINS array could also include other files we have to check for ELF files now
       # This information is already stored in P99_CSV_LOG and in our lBINARY_ENTRY details
-      lBIN_FILE_DETAILS=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f8)
+      lBIN_FILE_DETAILS=$(cut -d ';' -f8 <<<"${lBINARY_ENTRY}") # field 8
       if [[ "${lBIN_FILE_DETAILS}" == *"ELF"* ]]; then
         # print_output "[*] Checking for strict bin ${lBINARY_ENTRY} - rule: ${lRULE_IDENTIFIER}" "no_log"
-        MD5_SUM=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f9)
-        lBINARY_PATH=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f2)
+        lMD5_SUM=$(cut -d ';' -f9 <<<"${lBINARY_ENTRY}")     # field 9
+        lBINARY_PATH=$(cut -d ';' -f2 <<<"${lBINARY_ENTRY}") # field 2
         lAPP_NAME="$(basename "${lBINARY_PATH}")"
-        local lSTRINGS_OUTPUT="${LOG_PATH_MODULE}"/strings_bins/strings_"${MD5_SUM}"_"${lAPP_NAME}".txt
+        local lSTRINGS_OUTPUT="${LOG_PATH_MODULE}"/strings_bins/strings_"${lMD5_SUM}"_"${lAPP_NAME}".txt
         if ! [[ -f "${lSTRINGS_OUTPUT}" ]]; then
           continue
         fi
         for lVERSION_IDENTIFIER in "${lSTRICT_VERSION_IDENTIFIER_ARR[@]}"; do
-          # print_output "[*] Testing identifier ${lVERSION_IDENTIFIER}"
+          local lIDENTIFIER_ID=$(("${lVERSION_IDENTIFIER%%$'\t'*}" + 1))
+          lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER#*$'\t'}"
+
+          # print_output "[*] Testing STRICT identifier ${lVERSION_IDENTIFIER}" "no_log"
           lVERSION_IDENTIFIED=$(grep -a -E "${lVERSION_IDENTIFIER}" "${lSTRINGS_OUTPUT}" | sort -u || true)
           if [[ -n ${lVERSION_IDENTIFIED} ]]; then
             print_ln "no_log"
             print_output "[+] Version information found ${RED}${lAPP_NAME} ${lVERSION_IDENTIFIED}${NC}${GREEN} in binary ${ORANGE}$(print_path "${lBINARY_PATH}")${GREEN} (license: ${ORANGE}${lLICENSES_ARR[*]}${GREEN}) (${ORANGE}static - strict${GREEN})."
+            # create_minimal_binary_corpus "${lRULE_IDENTIFIER}" "${lIDENTIFIER_ID}" "${lBINARY_PATH}" "${lVERSION_IDENTIFIER}"
             if version_parsing_logging "${S09_CSV_LOG}" "S09_firmware_base_version_check" "${lVERSION_IDENTIFIED}" "${lBINARY_ENTRY}" "${lRULE_IDENTIFIER}" "lVENDOR_NAME_ARR" "lPRODUCT_NAME_ARR" "lLICENSES_ARR" "lCSV_REGEX_ARR"; then
               # print_output "[*] back from logging for ${lVERSION_IDENTIFIED} -> continue to next binary"
               continue 2
@@ -329,6 +339,7 @@ S09_identifier_threadings() {
     #   use zgrep regex via zgrep on these files
 
     # we create an array with testing candidates based on the paths from the json configuration
+    local lZGREP_BINS_ARR=()
     for lAPP_NAME in "${lAFFECTED_PATHS_ARR[@]}"; do
       local lZGREP_BINS_ARR_TMP=()
       mapfile -t lZGREP_BINS_ARR_TMP < <(grep "/${lAPP_NAME#/}" "${P99_CSV_LOG}" | sort -u || true)
@@ -336,11 +347,14 @@ S09_identifier_threadings() {
     done
 
     for lBINARY_ENTRY in "${lZGREP_BINS_ARR[@]}"; do
-      lBINARY_PATH=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f2)
+      lBINARY_PATH=$(cut -d ';' -f2 <<<"${lBINARY_ENTRY}") # field 2
       if ! [[ -f "${lBINARY_PATH}" ]]; then
         continue
       fi
       for lVERSION_IDENTIFIER in "${lZGREP_VERSION_IDENTIFIER_ARR[@]}"; do
+        local lIDENTIFIER_ID=$(("${lVERSION_IDENTIFIER%%$'\t'*}" + 1))
+        lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER#*$'\t'}"
+
         # print_output "[*] Testing zgrep identifier ${ORANGE}${lVERSION_IDENTIFIER}${NC} on binary ${ORANGE}${lBINARY_PATH}${NC}"
         lVERSION_IDENTIFIED=$(zgrep -h "${lVERSION_IDENTIFIER}" "${lBINARY_PATH}" | sort -u || true)
         lVERSION_IDENTIFIED="${lVERSION_IDENTIFIED//[![:print:]]/}"
@@ -356,7 +370,7 @@ S09_identifier_threadings() {
   fi
 
   # This is the default mode!
-  if [[ "${lPARSING_MODE_ARR[*]}" == *"normal"* ]]; then
+  if [[ "${lPARSING_MODE_ARR[*]}" == *"normal"* ]] || [[ "${lPARSING_MODE_ARR[*]}" == *"multi_grep"* ]]; then
     print_dot
     # print_output "[*] FIRMWARE: ${FIRMWARE} / RTOS: ${RTOS} / FIRMWARE_PATH: ${FIRMWARE_PATH} / FIRMWARE_PATH_BAK: ${FIRMWARE_PATH_BAK}" "no_log"
 
@@ -376,6 +390,9 @@ S09_identifier_threadings() {
       # if no strings available ... go ahead and test all the bins against our identifiers
       if [[ -f "${lSTRINGS_OUTPUT}" ]]; then
         for lVERSION_IDENTIFIER in "${lVERSION_IDENTIFIER_ARR[@]}"; do
+          local lIDENTIFIER_ID=$(("${lVERSION_IDENTIFIER%%$'\t'*}" + 1))
+          lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER#*$'\t'}"
+
           # print_output "[*] Testing identifier ${lVERSION_IDENTIFIER} for RTOS firmware" "no_log"
           lVERSION_IDENTIFIED=$(grep -a -E "${lVERSION_IDENTIFIER}" "${lSTRINGS_OUTPUT}" | sort -u || true)
           if [[ -n ${lVERSION_IDENTIFIED} ]]; then
@@ -400,8 +417,11 @@ S09_identifier_threadings() {
     # TODO: change to local vars via parameters - this is ugly as hell!
     local lVERSION_IDENTIFIER=""
     for lVERSION_IDENTIFIER in "${lVERSION_IDENTIFIER_ARR[@]}"; do
+      local lIDENTIFIER_ID=$(("${lVERSION_IDENTIFIER%%$'\t'*}" + 1))
+      lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER#*$'\t'}"
+
       # print_output "[*] Calling with ${lVERSION_IDENTIFIER}" "no_log"
-      bin_string_checker "${lVERSION_IDENTIFIER}" "${lRULE_IDENTIFIER}" "lVENDOR_NAME_ARR" "lPRODUCT_NAME_ARR" "lLICENSES_ARR" "lCSV_REGEX_ARR" "lPARSING_MODE_ARR" &
+      bin_string_checker "${lVERSION_IDENTIFIER}" "${lIDENTIFIER_ID}" "${lRULE_IDENTIFIER}" "lVENDOR_NAME_ARR" "lPRODUCT_NAME_ARR" "lLICENSES_ARR" "lCSV_REGEX_ARR" "lPARSING_MODE_ARR" &
       local lTMP_PID="$!"
       WAIT_PIDS_S09+=("${lTMP_PID}")
       # echo "WAIT_PIDS_S09: ${#WAIT_PIDS_S09[@]} / max: ${MAX_MOD_THREADS})"
@@ -439,19 +459,19 @@ version_parsing_logging() {
   local lPURL_IDENTIFIER=""
 
   if [[ "${lBINARY_ENTRY}" != "NA" ]]; then
-    lBINARY_PATH=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f2)
-    lBIN_FILE_DETAILS=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f8)
-    lMD5_SUM=$(echo "${lBINARY_ENTRY}" | cut -d ';' -f9)
+    lBINARY_PATH=$(cut -d ';' -f2 <<<"${lBINARY_ENTRY}")      # field 2
+    lBIN_FILE_DETAILS=$(cut -d ';' -f8 <<<"${lBINARY_ENTRY}") # field 8
+    lMD5_SUM=$(cut -d ';' -f9 <<<"${lBINARY_ENTRY}")          # field 9
   fi
 
   for lCSV_REGEX in "${lrCSV_REGEX_ARR_ref[@]}"; do
     lCSV_RULE=$(get_csv_rule "${lVERSION_IDENTIFIED}" "${lCSV_REGEX}")
     lCSV_RULE="${lCSV_RULE//\ /}"
 
-    lAPP_MAINT=$(echo "${lCSV_RULE}" | cut -d ':' -f2)
+    lAPP_MAINT=$(cut -d ':' -f2 <<<"${lCSV_RULE}") # field 2
     # lAPP_NAME is the name from the json configuration
-    lAPP_NAME=$(echo "${lCSV_RULE}" | cut -d ':' -f3)
-    lAPP_VERS=$(echo "${lCSV_RULE}" | cut -d ':' -f4-5)
+    lAPP_NAME=$(cut -d ':' -f3 <<<"${lCSV_RULE}")   # field 3
+    lAPP_VERS=$(cut -d ':' -f4-5 <<<"${lCSV_RULE}") # fields 4-5
 
     if [[ "${lCSV_RULE}" != *":"*":"*":"* ]]; then
       # our csv rule not working ... continue with the next rule
@@ -466,7 +486,7 @@ version_parsing_logging() {
     if [[ "${lBINARY_ENTRY}" != "NA" ]]; then
       [[ -f "${lBINARY_PATH}" ]] && lSHA256_CHECKSUM="$(sha256sum "${lBINARY_PATH}" | awk '{print $1}')"
       [[ -f "${lBINARY_PATH}" ]] && lSHA512_CHECKSUM="$(sha512sum "${lBINARY_PATH}" | awk '{print $1}')"
-      lBIN_ARCH=$(echo "${lBIN_FILE_DETAILS}" | cut -d ',' -f2)
+      lBIN_ARCH=$(cut -d ',' -f2 <<<"${lBIN_FILE_DETAILS}") # field 2
       lBIN_ARCH=${lBIN_ARCH#\ }
     fi
     lCPE_IDENTIFIER=$(build_cpe_identifier "${lCSV_RULE}")
@@ -530,7 +550,7 @@ version_parsing_logging() {
     # create component entry - this allows adding entries very flexible:
     build_sbom_json_component_arr "${PACKAGING_SYSTEM}" "${lAPP_TYPE:-library}" "${lAPP_NAME:-NA}" "${lAPP_VERS:-NA}" "${lAPP_MAINT:-NA}" "${lrLICENSES_ARR_ref[*]}" "${lCPE_IDENTIFIER:-NA}" "${lPURL_IDENTIFIER:-NA}" "${lAPP_DESC:-NA}"
 
-    write_log "${PACKAGING_SYSTEM};${lBINARY_PATH:-NA};${MD5_SUM:-NA}/${lSHA256_CHECKSUM:-NA}/${lSHA512_CHECKSUM:-NA};${lAPP_NAME,,};${lVERSION_IDENTIFIED:-NA};${lCSV_RULE:-NA};${lrLICENSES_ARR_ref[*]};maintainer unknown;${lBIN_ARCH:-NA};${lCPE_IDENTIFIER};${lPURL_IDENTIFIER};${SBOM_COMP_BOM_REF:-NA};DESC" "${S08_CSV_LOG}"
+    write_log "${PACKAGING_SYSTEM};${lBINARY_PATH:-NA};${lMD5_SUM:-NA}/${lSHA256_CHECKSUM:-NA}/${lSHA512_CHECKSUM:-NA};${lAPP_NAME,,};${lVERSION_IDENTIFIED:-NA};${lCSV_RULE:-NA};${lrLICENSES_ARR_ref[*]};maintainer unknown;${lBIN_ARCH:-NA};${lCPE_IDENTIFIER};${lPURL_IDENTIFIER};${SBOM_COMP_BOM_REF:-NA};DESC" "${S08_CSV_LOG}"
     # we continue with the next binary -> set return as marker to get the knowledge in the caller
     return 0
   done
@@ -542,6 +562,9 @@ version_parsing_logging() {
 build_final_bins_threader() {
   local lFILE="${1:-}"
   local lBIN_FILE="${2:-}"
+
+  # Todo:
+  local lLICENSES_ARR=()
 
   if [[ "${lFILE}" =~ .*\.padding$ || "${lFILE}" =~ .*\.unknown$ || "${lFILE}" =~ .*\.uncompressed$ || "${lFILE}" =~ .*\.raw$ || "${lFILE}" =~ .*\.elf$ || "${lFILE}" =~ .*\.decompressed\.bin$ ]]; then
     # binwalk and unblob are producing multiple files that are not relevant for the SBOM and can skip them here
@@ -577,7 +600,7 @@ build_final_bins_threader() {
   fi
   local lPACKAGING_SYSTEM="unhandled_file"
   local lPROP_ARRAY_INIT_ARR=()
-  lBIN_ARCH=$(echo "${lBIN_FILE}" | cut -d ',' -f2)
+  lBIN_ARCH=$(cut -d ',' -f2 <<<"${lBIN_FILE}") # field 2
   lBIN_ARCH=${lBIN_ARCH#\ }
   lPROP_ARRAY_INIT_ARR+=("source_path:${lFILE}")
   if [[ -n "${lBIN_ARCH}" ]]; then
@@ -632,14 +655,14 @@ build_generic_purl() {
   local lBIN_VERS=""
   local lPURL_IDENTIFIER=""
 
-  lBIN_VENDOR=$(echo "${lCSV_RULE}" | cut -d ':' -f2)
-  lBIN_NAME=$(echo "${lCSV_RULE}" | cut -d ':' -f3)
+  lBIN_VENDOR=$(cut -d ':' -f2 <<<"${lCSV_RULE}") # field 2
+  lBIN_NAME=$(cut -d ':' -f3 <<<"${lCSV_RULE}")   # field 3
   if [[ -z "${lBIN_VENDOR}" ]]; then
     # backup mode for setting the vendor in the CPE to the software component
     lBIN_VENDOR="${lBIN_NAME}"
   fi
   lPURL_IDENTIFIER="pkg:binary/${lOS_IDENTIFIED/-*/}/${lBIN_NAME}"
-  lBIN_VERS=$(echo "${lCSV_RULE}" | cut -d ':' -f4-)
+  lBIN_VERS="${lCSV_RULE#*:*:*:}" # field 4-
 
   if [[ -n "${lBIN_VERS}" ]]; then
     lPURL_IDENTIFIER+="@${lBIN_VERS}"
@@ -661,26 +684,36 @@ build_generic_purl() {
 
 build_cpe_identifier() {
   local lCSV_RULE="${1:-}"
-  local lBIN_VENDOR=""
+  local lCPE_PART="${2:-a}"
+
+  # ensure our lCSV_RULE starts with a :
+  # otherwise our field based extraction will fail
+  [[ ! "${lCSV_RULE}" == ":"* ]] && lCSV_RULE=":${lCSV_RULE}"
+
   local lBIN_NAME=""
+  local lBIN_VENDOR=""
   local lBIN_VERS=""
   local lCPE_LENGTH=""
   local lCPE_IDENTIFIER=""
+  local lCPE_FMT_LENGTH=13
 
-  lBIN_VENDOR=$(echo "${lCSV_RULE}" | cut -d ':' -f2)
-  lBIN_NAME=$(echo "${lCSV_RULE}" | cut -d ':' -f3)
+  lBIN_NAME=$(cut -d ':' -f3 <<<"${lCSV_RULE}")
+  [[ "${lBIN_NAME}" == *"linux_kernel"* ]] && lCPE_PART="o"
+
+  lBIN_VENDOR=$(cut -d ':' -f2 <<<"${lCSV_RULE}")
   if [[ -z "${lBIN_VENDOR}" ]]; then
     # backup mode for setting the vendor in the CPE to the software component
     lBIN_VENDOR="${lBIN_NAME}"
   fi
-  lBIN_VERS=$(echo "${lCSV_RULE}" | cut -d ':' -f4-)
-  # our CPE identifier should have 13 fields - sometimes our lBIN_VERS has multiple fields -> we need to count our fields and fill the rest
-  lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lBIN_VENDOR:-*}:${lBIN_NAME:-*}:${lBIN_VERS:-*}:"
-  lCPE_LENGTH=$(echo "${lCPE_IDENTIFIER}" | tr ':' '\n' | wc -l)
 
-  while [[ "${lCPE_LENGTH}" -lt 13 ]]; do
+  lBIN_VERS=$(cut -d ':' -f4- <<<"${lCSV_RULE}")
+  # our CPE identifier should have 13 fields - sometimes our lBIN_VERS has multiple fields -> we need to count our fields and fill the rest
+  lCPE_IDENTIFIER="cpe:${CPE_VERSION}:${lCPE_PART}:${lBIN_VENDOR:-*}:${lBIN_NAME:-*}:${lBIN_VERS:-*}:"
+  lCPE_LENGTH=$(tr ':' '\n' <<<"${lCPE_IDENTIFIER}" | wc -l)
+
+  while [[ "${lCPE_LENGTH}" -lt "${lCPE_FMT_LENGTH}" ]]; do
     lCPE_IDENTIFIER+='*:'
-    lCPE_LENGTH=$(echo "${lCPE_IDENTIFIER}" | tr ':' '\n' | wc -l)
+    lCPE_LENGTH=$(tr ':' '\n' <<<"${lCPE_IDENTIFIER}" | wc -l)
   done
   lCPE_IDENTIFIER+='*'
 
@@ -734,24 +767,26 @@ generate_strings() {
 
 # bin_string_checker "${lVERSION_IDENTIFIER}" "${lRULE_IDENTIFIER}" "lVENDOR_NAME_ARR" "lPRODUCT_NAME_ARR" "lLICENSES_ARR" "lCSV_REGEX_ARR" "lPARSING_MODE_ARR" &
 bin_string_checker() {
-  local lVERSION_IDENTIFIER="${1:-}"
-  local lRULE_IDENTIFIER="${2:-}"
+  local lVERSION_IDENTIFIER_ORIG="${1:-}"
+  local lIDENTIFIER_ID="${2:-}"
+  local lRULE_IDENTIFIER="${3:-}"
   # shellcheck disable=SC2034
-  local -n lrVENDOR_NAME_ARR="${3:-}"
+  local -n lrVENDOR_NAME_ARR="${4:-}"
   # shellcheck disable=SC2034
-  local -n lrPRODUCT_NAME_ARR="${4:-}"
+  local -n lrPRODUCT_NAME_ARR="${5:-}"
   # shellcheck disable=SC2034
-  local -n lrLICENSES_ARR="${5:-}"
+  local -n lrLICENSES_ARR="${6:-}"
   # shellcheck disable=SC2034
-  local -n lrCSV_REGEX_ARR="${6:-}"
-  local -n lrPARSING_MODE_ARR="${7:-}"
+  local -n lrCSV_REGEX_ARR="${7:-}"
+  local -n lrPARSING_MODE_ARR="${8:-}"
 
-  # load lVERSION_IDENTIFIER string into array for multi_grep handling
+  # load lVERSION_IDENTIFIER_FULL string into array for multi_grep handling
   local lVERSION_IDENTIFIERS_ARR=()
   # remove the ' from the multi_grep identifiers:
-  lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER%\'}"
-  lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER#\'}"
-  mapfile -t lVERSION_IDENTIFIERS_ARR < <(echo "${lVERSION_IDENTIFIER//AND/$'\n'}")
+  lVERSION_IDENTIFIER_FULL="${lVERSION_IDENTIFIER_ORIG%\'}"
+  lVERSION_IDENTIFIER_FULL="${lVERSION_IDENTIFIER_FULL#\'}"
+  # replace the AND marker with \n to create an array with all the identifiers
+  mapfile -t lVERSION_IDENTIFIERS_ARR < <(echo "${lVERSION_IDENTIFIER_FULL//AND/$'\n'}")
 
   local lPURL_IDENTIFIER="NA"
   local lOS_IDENTIFIED=""
@@ -782,7 +817,7 @@ bin_string_checker() {
     done
   fi
   if [[ "${#lFILE_DATA_ARR[@]}" -eq 0 ]]; then
-    # print_output "[-] No file array created for ${lVERSION_IDENTIFIER}" "no_log"
+    # print_output "[-] No file array created for ${lVERSION_IDENTIFIER_FULL}" "no_log"
     return
   fi
 
@@ -794,10 +829,10 @@ bin_string_checker() {
     local lBIN_NAME_REAL=""
     local lBIN_FILE=""
 
-    mapfile -t lBIN_DATA_ARR < <(echo "${lBINARY_DATA}" | tr ';' '\n')
+    mapfile -t lBIN_DATA_ARR < <(tr ';' '\n' <<<"${lBINARY_DATA}")
     lBINARY_PATH="${lBIN_DATA_ARR[1]}"
     if [[ ! -f "${lBINARY_PATH}" ]]; then
-      print_output "[-] Binary ${lBINARY_PATH} not found - Not testing for versions"
+      print_output "[-] Binary ${lBIN_DATA_ARR[*]} not found - Not testing for versions"
       continue
     fi
 
@@ -825,7 +860,7 @@ bin_string_checker() {
         lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER/\"/}"
         lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER%\"}"
       fi
-      if [[ ${RTOS} -eq 0 ]]; then
+      if [[ "${RTOS}" -eq 0 ]]; then
         if [[ "${lBIN_FILE}" == *ELF* || "${lBIN_FILE}" == *uImage* || "${lBIN_FILE}" == *Kernel\ Image* || "${lBIN_FILE}" == *"Linux\ kernel"* ]]; then
           # print_output "[!] Testing ${lBINARY_PATH} with version identifier ${lVERSION_IDENTIFIER}" "no_log"
           lVERSION_IDENTIFIED=$(grep -o -a -E "${lVERSION_IDENTIFIER}" "${lSTRINGS_OUTPUT}" | sort -u | head -1 || true)
@@ -838,6 +873,7 @@ bin_string_checker() {
             fi
             print_ln "no_log"
             print_output "[+] Version information found ${RED}${lVERSION_IDENTIFIED}${NC}${GREEN} in binary ${ORANGE}$(print_path "${lBINARY_PATH}")${GREEN} (license: ${ORANGE}${lLICENSES_ARR[*]}${GREEN}) (${ORANGE}static${GREEN})."
+            create_minimal_binary_corpus "${lRULE_IDENTIFIER}" "${lIDENTIFIER_ID}" "${lBINARY_PATH}" "${lVERSION_IDENTIFIER_ORIG}"
 
             if version_parsing_logging "${S09_CSV_LOG}" "S09_firmware_base_version_check" "${lVERSION_IDENTIFIED}" "${lBINARY_DATA}" "${lRULE_IDENTIFIER}" "lrVENDOR_NAME_ARR" "lrPRODUCT_NAME_ARR" "lrLICENSES_ARR" "lrCSV_REGEX_ARR"; then
               # print_output "[*] back from logging for ${lVERSION_IDENTIFIED} -> continue to next binary"
@@ -891,4 +927,82 @@ bin_string_checker() {
       continue 2
     done
   done
+}
+
+# enable/disable with BINARY_CORPUS_GENERATION in defaults or in scanning profile
+# This mechanism automatically generates EMBA binary testing corpus files.
+# It automatically checks if the testing file is already available and checks it only if
+# it is missing. A PR on missing testing files should be very easy with this mechanisms.
+# Additionally, this mechanism will help in building and submitting new identifiers in
+# config/bin_version_identifiers. Just build the new identifier and the testfile will be
+# generated automatically in the s09 module directory -> just copy it to tests/bin_version_testdata
+# and submit a PR
+create_minimal_binary_corpus() {
+  [[ "${BINARY_CORPUS_GENERATION}" -ne 1 ]] && return
+  local lRULE_IDENTIFIER="${1:-}"
+  local lIDENTIFIER_ID="${2:-}"
+  local lBINARY_PATH="${3:-}"
+  local lVERSION_IDENTIFIER_ORIG="${4:-}"
+
+  local lCORPUS_PATH="${S09_LOG_DIR}/binary_corpus_tmp"
+  local lCORPUS_log="${lCORPUS_PATH}/logfile.txt"
+  [[ ! -d "${lCORPUS_PATH}" ]] && mkdir -p -- "${lCORPUS_PATH}"
+  touch "${lCORPUS_log}" 2>/dev/null || true
+  local lCORPUS_FILE="${lCORPUS_PATH}/${lRULE_IDENTIFIER}_${lIDENTIFIER_ID//$'\n'/_}"
+  local lORIG_CORPUS_FILE="${TESTS_DIR}/bin_version_testdata/${lRULE_IDENTIFIER}_${lIDENTIFIER_ID//$'\n'/_}.bin"
+  local lCORPUS_FILE_tmp="${lCORPUS_FILE}_${RANDOM}.bin"
+  local lCORPUS_FILE="${lCORPUS_FILE}.bin"
+  [[ -f "${lCORPUS_FILE}" ]] && return
+  [[ -f "${lORIG_CORPUS_FILE}" ]] && return
+
+  # replace the AND marker with \n to create an array with all the identifiers
+  local lVERSION_IDENTIFIERS_ARR=()
+  # remove the ' from the multi_grep identifiers:
+  lVERSION_IDENTIFIER_FULL="${lVERSION_IDENTIFIER_ORIG%\'}"
+  lVERSION_IDENTIFIER_FULL="${lVERSION_IDENTIFIER_FULL#\'}"
+  mapfile -t lVERSION_IDENTIFIERS_ARR < <(echo "${lVERSION_IDENTIFIER_FULL//AND/$'\n'}")
+
+  write_log "[*] Testing ${lRULE_IDENTIFIER}.json for identifier ${lVERSION_IDENTIFIER_FULL}" "${lCORPUS_log}"
+
+  write_log "[*] Extracted id for rule ${lRULE_IDENTIFIER} - ${lVERSION_IDENTIFIER_ORIG}: ${lIDENTIFIER_ID}" "${lCORPUS_log}"
+  write_log "[*] Generate corpus for rule ${lRULE_IDENTIFIER}" "${lCORPUS_log}"
+  write_log "[*] Generate corpus for version identifier ${lVERSION_IDENTIFIER_ORIG} - rule ${lRULE_IDENTIFIER}" "${lCORPUS_log}"
+  write_log "[*] Generate corpus for binary ${lBINARY_PATH} - rule ${lRULE_IDENTIFIER}" "${lCORPUS_log}"
+
+  if [[ ! -f "${lBINARY_PATH}" ]]; then
+    write_log "[-] WARNING: no binary file for ${lBINARY_PATH} found" "${lCORPUS_log}"
+    return
+  fi
+
+  for ((j = 0; j < ${#lVERSION_IDENTIFIERS_ARR[@]}; j++)); do
+    local lVERSION_IDENTIFIER="${lVERSION_IDENTIFIERS_ARR["${j}"]}"
+    # print_output "[*] Testing ${lBINARY_PATH} with version identifier ${lVERSION_IDENTIFIER}" "no_log"
+    local lVERSION_IDENTIFIED=""
+    [[ -z "${lVERSION_IDENTIFIER}" ]] && continue
+    # this is a workaround to handle the new multi_grep
+    if [[ "${lVERSION_IDENTIFIER: -1}" == '"' ]]; then
+      lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER/\"/}"
+      lVERSION_IDENTIFIER="${lVERSION_IDENTIFIER%\"}"
+    fi
+
+    lVERSION_IDENTIFIER=${lVERSION_IDENTIFIER%$}
+    lVERSION_IDENTIFIER=${lVERSION_IDENTIFIER#^}
+
+    grep -o -a -E ".{0,300}${lVERSION_IDENTIFIER}.{0,300}" "${lBINARY_PATH}" >>"${lCORPUS_FILE_tmp}" || true
+
+    lCORP_SIZE=$(wc -c <"${lCORPUS_FILE_tmp}")
+    write_log "[*] Generated corpus for binary ${lBINARY_PATH} with size ${lCORP_SIZE} - rule ${lRULE_IDENTIFIER}/${lVERSION_IDENTIFIER}" "${lCORPUS_log}"
+  done
+  if [[ ! -f "${lCORPUS_FILE}" ]]; then
+    if [[ -s "${lCORPUS_FILE_tmp}" ]]; then
+      # mv -n does not overwrite existing files
+      if mv -n -- "${lCORPUS_FILE_tmp}" "${lCORPUS_FILE}"; then
+        lCORP_SIZE=$(wc -c <"${lCORPUS_FILE}")
+        write_log "[*] Generated final corpus for binary ${lBINARY_PATH} with size ${lCORP_SIZE} - rule ${lRULE_IDENTIFIER}/${lVERSION_IDENTIFIER_ORIG}" "${lCORPUS_log}"
+      else
+        # lCORPUS_FILE already available -> we can remove our tmp file
+        rm -f -- "${lCORPUS_FILE_tmp}"
+      fi
+    fi
+  fi
 }

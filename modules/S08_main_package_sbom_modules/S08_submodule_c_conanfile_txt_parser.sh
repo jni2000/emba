@@ -106,12 +106,12 @@ S08_submodule_c_conanfile_txt_parser() {
 
         lAPP_LIC="NA"
 
-        lAPP_VERS=$(echo "${lCONAN_ENTRY}" | cut -d '/' -f2-)
+        lAPP_VERS="${lCONAN_ENTRY#*/}" # field 2-
         lAPP_VERS=$(clean_package_details "${lAPP_VERS}")
         lAPP_VERS=$(clean_package_versions "${lAPP_VERS}")
 
         lAPP_VENDOR="${lAPP_NAME}"
-        lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}:*:*:*:*:*:*"
+        lCPE_IDENTIFIER=$(build_cpe_identifier ":${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}")
 
         if [[ -z "${lOS_IDENTIFIED}" ]]; then
           lOS_IDENTIFIED="generic"

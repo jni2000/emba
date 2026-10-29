@@ -21,6 +21,7 @@ IP00_extractors() {
   if [[ "${LIST_DEP}" -eq 1 ]] || [[ "${IN_DOCKER}" -eq 1 ]] || [[ "${DOCKER_SETUP}" -eq 0 ]] || [[ "${FULL}" -eq 1 ]]; then
 
     print_tool_info "python3-pip" 1
+    print_tool_info "python3-dev" 1
     print_tool_info "patool" 1
     print_pip_info "bsdiff4"
     print_git_info "payload_dumper" "EMBA-support-repos/payload_dumper" "Android OTA payload.bin extractor"
@@ -99,7 +100,7 @@ IP00_extractors() {
         cd ./external || (echo "Could not install EMBA component buffalo decryptor" && exit 1)
         sed -i 's/#include "buffalo-lib.h"/#include "buffalo-lib.h"\n#include "buffalo-lib.c"/g' buffalo-enc.c
         gcc -o buffalo-enc.elf buffalo-enc.c
-        rm buffalo-enc.c buffalo-lib.c buffalo-lib.h
+        rm -- buffalo-enc.c buffalo-lib.c buffalo-lib.h
         cd "${HOME_PATH}" || (echo "Could not install EMBA component buffalo decryptor" && exit 1)
 
       fi

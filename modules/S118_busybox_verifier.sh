@@ -41,8 +41,10 @@ S118_busybox_verifier() {
   # this usually happens if s09 and s115/116 is disabled
   # This mode is a backup mode
   if [[ "${#lBB_SBOMs_ARR[@]}" -eq 0 ]]; then
-    # first grep is for identification of possible binary files:
-    mapfile -t lBB_BINS_ARR < <(grep -l -a -E "BusyBox" "${LOG_DIR}"/firmware -r 2>/dev/null || true)
+    # first grep is for identification of possible binary files - only the ELF files from P99
+    # are used below, so only grep those (a recursive grep over all extracted files buffers
+    # huge newline-free files as one "line", which can exhaust memory)
+    mapfile -t lBB_BINS_ARR < <(awk -F';' '$8 ~ /ELF/ {print $2}' "${P99_CSV_LOG}" | sort -u | xargs -r -d '\n' grep -l -E "BusyBox" 2>/dev/null || true)
 
     for lBB_BIN in "${lBB_BINS_ARR[@]}"; do
       if [[ "${lBB_BIN}" == *".raw" ]]; then
@@ -64,9 +66,9 @@ S118_busybox_verifier() {
       mapfile -t lVERSION_IDENTIFIER_ARR < <(jq -r .grep_commands[] "${lVERSION_JSON_CFG}" 2>/dev/null || true)
       for lVERSION_IDENTIFIER in "${lVERSION_IDENTIFIER_ARR[@]}"; do
         lVERSION_IDENTIFIED=$(strings "${lBB_BIN}" | grep -a -E "${lVERSION_IDENTIFIER}" | sort -u | head -1 || true)
+        local lLICENSES_ARR=()
         if [[ -n ${lVERSION_IDENTIFIED} ]]; then
           local lRULE_IDENTIFIER=""
-          local lLICENSES_ARR=()
           local lPRODUCT_NAME_ARR=()
           local lVENDOR_NAME_ARR=()
           local lCSV_REGEX_ARR=()
@@ -113,7 +115,8 @@ S118_busybox_verifier() {
     lBB_VENDOR=${lBB_VENDOR,,}
 
     local lBB_BIN=""
-    lBB_BIN="$(jq -r '.properties[]? | select(.name | test("source_path")) | .value' "${lBB_SBOM_JSON}" || print_error "[-] S118 - BB source_path extraction failed for ${lBB_SBOM_JSON}")"
+    # Todo: switch to array and remove the '| head -1'
+    lBB_BIN="$(jq -r '.properties[]? | select(.name | test("source_path")) | .value' "${lBB_SBOM_JSON}" | sort -u | head -1 || print_error "[-] S118 - BB source_path extraction failed for ${lBB_SBOM_JSON}")"
     lBB_BIN="${lBB_BIN#\'}"
     lBB_BIN="${lBB_BIN%\'}"
     if ! [[ -f "${lBB_BIN}" ]]; then
@@ -162,7 +165,7 @@ S118_busybox_verifier() {
 
     if [[ -f "${LOG_PATH_MODULE}/busybox_applets_${lBB_VERSION}.tmp" ]]; then
       mapfile -t BB_VERIFIED_APPLETS < <(sort -u "${LOG_PATH_MODULE}/busybox_applets_${lBB_VERSION}.tmp")
-      rm "${LOG_PATH_MODULE}/busybox_applets_${lBB_VERSION}.tmp" || true
+      rm -- "${LOG_PATH_MODULE}/busybox_applets_${lBB_VERSION}.tmp" || true
     fi
 
     print_output "[*] Create CVE vulnerabilities array for BusyBox version ${ORANGE}:${lBB_VENDOR}:${lBB_PRODUCT}:${lBB_VERSION}${NC} ..." "no_log"
@@ -209,7 +212,7 @@ S118_busybox_verifier() {
       # get the CVEs part of vuln_summary.txt
       lTMP_CVE_ENTRY=$(grep -o -E ":\s+CVEs:\ [0-9]+\s+:" "${LOG_PATH_MODULE}/vuln_summary.txt" | sort -u || true)
       # replace the spaces with the verified entry -> :  CVEs: 1234 (123):
-      lTMP_CVE_ENTRY=$(echo "${lTMP_CVE_ENTRY}" | sed -r 's/(CVEs:\ [0-9]+)\s+/\1 ('"${#lVERIFIED_BB_VULNS_ARR[@]}"')/')
+      lTMP_CVE_ENTRY=$(sed -r 's/(CVEs:\ [0-9]+)\s+/\1 ('"${#lVERIFIED_BB_VULNS_ARR[@]}"')/' <<<"${lTMP_CVE_ENTRY}")
       # ensure we have the right length -> :  CVEs: 1234 (123)  :
       lTMP_CVE_ENTRY=$(printf '%s%*s' "${lTMP_CVE_ENTRY%:}" "$((22 - "${#lTMP_CVE_ENTRY}"))" ":")
 
@@ -230,7 +233,7 @@ S118_busybox_verifier() {
   fi
 
   if [[ -d "${LOG_PATH_MODULE}/tmp" ]]; then
-    rm -r "${LOG_PATH_MODULE}/tmp" || true
+    rm -r -- "${LOG_PATH_MODULE}/tmp" || true
   fi
 
   module_end_log "${FUNCNAME[0]}" "${lNEG_LOG}"
@@ -244,11 +247,11 @@ busybox_vuln_testing_threader() {
 
   # print_output "[*] VULN: ${lVULN}"
   local lCVE=""
-  lCVE=$(echo "${lVULN}" | cut -d, -f3)
+  lCVE=$(cut -d ',' -f3 <<<"${lVULN}") # field 3
   local lLOG_FILE_BB_MODULE="${LOG_PATH_MODULE}/tmp/${lCVE}"
 
   if ! [[ -d "${LOG_PATH_MODULE}/tmp" ]]; then
-    mkdir "${LOG_PATH_MODULE}/tmp" 2>/dev/null || true
+    mkdir -- "${LOG_PATH_MODULE}/tmp" 2>/dev/null || true
   fi
 
   lSUMMARY=$(jq -r '.descriptions[]? | select(.lang=="en") | .value' "${NVD_DIR}/${lCVE%-*}/${lCVE:0:11}"*"xx/${lCVE}.json" 2>/dev/null || true)
@@ -375,7 +378,7 @@ get_cve_busybox_data() {
 
     for lCVE_NICE_REPORT in "${CVE_DETAILS_PATH/.csv/_CVE-}"*; do
       cat "${lCVE_NICE_REPORT}" >>"${CVE_DETAILS_PATH/.csv/_nice.txt}"
-      rm "${lCVE_NICE_REPORT}" >/dev/null || true
+      rm -- "${lCVE_NICE_REPORT}" >/dev/null || true
     done
 
     print_output "[+] Extracted ${ORANGE}${lVULN_CNT}${GREEN} vulnerabilities based on BusyBox version only" "" "${CVE_DETAILS_PATH/.csv/_nice.txt}"
@@ -391,8 +394,8 @@ get_cve_busybox_data_threader() {
   local lFIRST_EPSS=""
   local lCVE_SUMMARY=""
 
-  lCVE_ID=$(echo "${lCVE_LINE_ENTRY}" | cut -d, -f4)
-  lCVSS_V3=$(echo "${lCVE_LINE_ENTRY}" | cut -d, -f6)
+  lCVE_ID=$(cut -d ',' -f4 <<<"${lCVE_LINE_ENTRY}")  # field 4
+  lCVSS_V3=$(cut -d ',' -f6 <<<"${lCVE_LINE_ENTRY}") # field 6
   lFIRST_EPSS="$(get_epss_data "${lCVE_ID}")"
   lFIRST_EPSS="${lFIRST_EPSS/\;*/}"
   lCVE_SUMMARY=$(jq -r '.descriptions[]? | select(.lang=="en") | .value' "${NVD_DIR}/${lCVE_ID%-*}/${lCVE_ID:0:11}"*"xx/${lCVE_ID}.json" 2>/dev/null || true)

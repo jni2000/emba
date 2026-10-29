@@ -46,13 +46,13 @@ S28_java_check() {
     if [[ -f "${BASE_LINUX_FILES}" && "${FULL_TEST}" -eq 0 ]]; then
       # if we have the base linux config file we only test non known Linux binaries
       # with this we do not waste too much time on open source Linux stuff
-      lJNAME=$(basename "$(echo "${lJAVA_BINARY}" | cut -d';' -f2)" 2>/dev/null)
+      lJNAME=$(basename "$(cut -d ';' -f2 <<<"${lJAVA_BINARY}")" 2>/dev/null) # field 2
       if grep -E -q "^${lJNAME}$" "${BASE_LINUX_FILES}" 2>/dev/null; then
         continue
       fi
     fi
     ((lS28_JAVA_SCRIPTS += 1))
-    s28_java_decompile "$(echo "${lJAVA_BINARY}" | cut -d';' -f2)" &
+    s28_java_decompile "$(cut -d ';' -f2 <<<"${lJAVA_BINARY}")" & # field 2
     local lTMP_PID="$!"
     lWAIT_PIDS_S28+=("${lTMP_PID}")
     max_pids_protection "${MAX_MOD_THREADS}" lWAIT_PIDS_S28
@@ -120,7 +120,7 @@ s28_java_semgrep() {
   print_output "[*] Analysing ${ORANGE}${lJAVA_BIN_DIR}${NC} with semgrep" "no_log"
 
   local lJ_ANALYSE_DIR="${LOG_PATH_MODULE}/java_semgrep/"
-  [[ ! -d "${lJ_ANALYSE_DIR}" ]] && mkdir -p "${lJ_ANALYSE_DIR}"
+  [[ ! -d "${lJ_ANALYSE_DIR}" ]] && mkdir -p -- "${lJ_ANALYSE_DIR}"
   lJNAME="$(basename "${lJAVA_BIN_DIR}" 2>/dev/null)"
   local lJ_ANALYSE_RESULTS="${lJ_ANALYSE_DIR}/semgrep_${lJNAME}.json"
 
@@ -135,7 +135,7 @@ s28_java_decompile() {
   lJNAME=$(iconv -f UTF-8 -t ASCII//TRANSLIT <<<"${lJNAME}" || true)
   local lJ_DECOMPILE_DIR="${LOG_PATH_MODULE}/java_decompile/${lJNAME}_${RANDOM}"
   print_output "[*] Decompiling Java binary ${ORANGE}${lJNAME}${NC} to ${lJ_DECOMPILE_DIR}" "no_log"
-  [[ ! -d "${lJ_DECOMPILE_DIR}" ]] && mkdir -p "${lJ_DECOMPILE_DIR}"
+  [[ ! -d "${lJ_DECOMPILE_DIR}" ]] && mkdir -p -- "${lJ_DECOMPILE_DIR}"
 
   java -jar "${JAVA_DECOMPILER}" --silent "${lJAVA_BINARY}" "${lJ_DECOMPILE_DIR}" || true
 }

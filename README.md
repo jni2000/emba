@@ -17,7 +17,9 @@ Author(s): Michael Messner, Pascal Eckmann, Benedikt Kühne
   <img src="./helpers/emba.svg" width="200"/>
 </p>
 <p align="center">
-  <a href="https://github.com/koalaman/shellcheck"><img src="https://github.com/e-m-b-a/emba/workflows/ShellCheck/badge.svg?branch=master" /></a>
+  <a href="https://github.com/koalaman/shellcheck"><img src="https://github.com/e-m-b-a/emba/actions/workflows/shellcheck.yml/badge.svg"/></a>
+  <a href="https://semgrep.dev/"><img src="https://github.com/e-m-b-a/emba/actions/workflows/semgrep.yml/badge.svg"/></a>
+  <a href="https://github.com/mvdan/sh"><img src="https://github.com/e-m-b-a/emba/actions/workflows/shfmt_checker.yml/badge.svg"/></a>
   <a href="https://www.gnu.org/software/bash/"><img src="https://img.shields.io/badge/Made%20with-Bash-1f425f.svg" /></a>
   <a href="https://github.com/e-m-b-a/emba/blob/master/LICENSE"><img src="https://img.shields.io/github/license/e-m-b-a/emba?label=License"></a>
   <a href="https://github.com/e-m-b-a/emba/graphs/contributors"><img src="https://img.shields.io/github/contributors/e-m-b-a/emba?color=9ea"></a>
@@ -25,6 +27,7 @@ Author(s): Michael Messner, Pascal Eckmann, Benedikt Kühne
   <a href="https://github.com/e-m-b-a/emba/network/members"><img src="https://img.shields.io/github/forks/e-m-b-a/emba?label=Forks"></a>
   <a href="https://hub.docker.com/r/embeddedanalyzer/emba"><img src="https://img.shields.io/docker/pulls/embeddedanalyzer/emba"></a>
   <a href="https://twitter.com/intent/tweet?text=Check%20out%20EMBA%20-%20The%20Firmware%20security%20scanner!%20https://github.com/e-m-b-a/emba"><img src="https://img.shields.io/twitter/url.svg?style=social&url=https%3A%2F%2Fgithub.com%2Fe-m-b-a%2Femba"></a>
+  <a href="https://github.com/e-m-b-a/emba/blob/master/SECURITY.md"><img src="https://img.shields.io/badge/Research%20only-red"></a>
 </p>
 
 # EMBA
@@ -40,9 +43,12 @@ Author(s): Michael Messner, Pascal Eckmann, Benedikt Kühne
 
 ## Latest news
 
-* [*EMBA v2.0.2 - Party the big 2k*](https://github.com/e-m-b-a/emba/releases/tag/v2.0.2-big-2k)
-* [*EMBA v2.0.1 - The interactor*](https://github.com/e-m-b-a/emba/releases/tag/v2.0.1-interactor)
-* [*EMBA v2.0.0 - A brave new world of firmware analysis*](https://github.com/e-m-b-a/emba/releases/tag/v2.0.0-A-brave-new-world)
+* [*EMBA v2.0.4 - summer edition*](https://github.com/e-m-b-a/emba/releases/tag/v2.0.4-summer_edition)
+* [*EMBA demo report available*](https://www.securefirmware.de/emba/index.html)
+* *Happy 6th birthday EMBA*
+* [*Check the ko-fi support possibility for EMBA*](https://ko-fi.com/embafirmwareanalyzer)
+* [*Black Hat Arsenal - EMBArk demo - USA 2026*](https://github.com/e-m-b-a/emba/wiki#publications-talks-and-live-demos)
+* [*Black Hat Arsenal - EMBA lab - USA 2026*](https://github.com/e-m-b-a/emba/wiki#publications-talks-and-live-demos)
 * [*Recording of TROOPERS25 talk "SBOMs the right way" available*](https://github.com/e-m-b-a/emba/wiki#publications-talks-and-live-demos)
 * [*The EMBA book is available*](https://github.com/e-m-b-a/emba/wiki/The-EMBA-book-%E2%80%90-Overview)
 * [*The new EMBA merch store is online - check your merch now*](https://emba-firmware-analyzer.myspreadshop.de/)
@@ -51,7 +57,6 @@ Author(s): Michael Messner, Pascal Eckmann, Benedikt Kühne
 * [**FLOSS Weekly** Episode 802: EMBA – Layers Upon Layers Of Bash](https://hackaday.com/2024/09/25/floss-weekly-episode-802-emba-layers-upon-layers-of-bash/)
 * [*EMBA article on Medium available*](https://medium.com/@iugkhgf/leveraging-automated-firmware-analysis-with-the-open-source-firmware-analyzer-emba-46d30d587a87)
 * [*BsidesLV recording available*](https://youtu.be/8sXyRv21jPY?si=J9H3HK_5KX75Fk4C)
-* [*DEF CON 31 - ICS Village Talk announced*](https://icsvillage.com/)
 * [*Recording of Black Hat EU 2022 Arsenal session available*](https://github.com/e-m-b-a/emba/wiki#publications-talks-and-live-demos)
 * [*Recording of TROOPERS talk available*](https://github.com/e-m-b-a/emba/wiki#publications-talks-and-live-demos)
 * [*EMBA is now part of the OWASP Firmware Security Testing Methodology*](https://github.com/scriptingxss/owasp-fstm#emba---embedded-analyzer)
@@ -61,6 +66,7 @@ Author(s): Michael Messner, Pascal Eckmann, Benedikt Kühne
 ## Links to the wiki for more detailed information
 
 - [Home](https://github.com/e-m-b-a/emba/wiki)
+- [Interactive EMBA demo report](https://www.securefirmware.de/emba/index.html)
 - [Feature overview](https://github.com/e-m-b-a/emba/wiki/Feature-overview)
 - [Installation](https://github.com/e-m-b-a/emba/wiki/Installation)
 - [Usage](https://github.com/e-m-b-a/emba/wiki/Usage)

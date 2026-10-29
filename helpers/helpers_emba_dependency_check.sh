@@ -94,16 +94,16 @@ prepare_docker_home_dir() {
   if [[ -d "${EXT_DIR}"/cwe_checker/.config ]]; then
     # print_output "[*] Restoring config directory in read-only container" "no_log"
     if ! [[ -d "${HOME}"/.config/ ]]; then
-      mkdir -p "${HOME}"/.config
+      mkdir -p -- "${HOME}"/.config
     fi
-    cp -pr "${EXT_DIR}"/cwe_checker/.config/* "${HOME}"/.config/
+    cp -pr -- "${EXT_DIR}/cwe_checker/.config/"* "${HOME}/.config/"
     # .local/share has also stored the r2 plugin data, this results in restoring only the composer and cwe_checker areas
-    cp -pr "${EXT_DIR}"/cwe_checker/.local/share/composer/.htaccess "${HOME}"/.local/share/composer/
-    cp -pr "${EXT_DIR}"/cwe_checker/.local/share/cwe_checker/* "${HOME}"/.local/share/cwe_checker/
+    cp -pr -- "${EXT_DIR}/cwe_checker/.local/share/composer/.htaccess" "${HOME}/.local/share/composer/"
+    cp -pr -- "${EXT_DIR}/cwe_checker/.local/share/cwe_checker/"* "${HOME}/.local/share/cwe_checker/"
 
     # quick hack to have kaleido in place for binwalk
     if [[ -L "${HOME}/.config/kaleido" ]]; then
-      ln -s "${EXT_DIR}/cwe_checker/.config/kaleido" "${HOME}/.config/kaleido"
+      ln -s -- "${EXT_DIR}/cwe_checker/.config/kaleido" "${HOME}/.config/kaleido"
     fi
   fi
 }
@@ -209,7 +209,7 @@ check_docker_version() {
 
 preparing_cve_bin_tool() {
   print_output "    Preparing cve-bin-tool ..." "no_log"
-  # [[ ! -d "${HOME}"/.cache/cve-bin-tool ]] && mkdir "${HOME}"/.cache/cve-bin-tool
+  # [[ ! -d "${HOME}"/.cache/cve-bin-tool ]] && mkdir -- "${HOME}"/.cache/cve-bin-tool
   if [[ ! -d "${HOME}"/.cache/cve-bin-tool ]]; then
     print_output "[*] ${HOME}/.cache/cve-bin-tool not exist!" "no_log"
   else
@@ -242,11 +242,11 @@ preparing_cve_bin_tool() {
       echo "cve-bin-tool database preparation finished" >>"${TMP_DIR}/tmp_state_data.log"
       print_output "[*] cve-bin-tool database preparation finished - possible malfunction identified" "no_log"
     fi
-    rm -f "${TMP_DIR}/cve_bin_tool_health_check_results.csv"
+    rm -f -- "${TMP_DIR}/cve_bin_tool_health_check_results.csv"
   else
     print_output "[-] cve-bin-tool database preparation failed - No CVE queries possible" "no_log"
   fi
-  [[ -f "${TMP_DIR}/cve_bin_tool_health_check.csv" ]] && rm -f "${TMP_DIR}/cve_bin_tool_health_check.csv"
+  [[ -f "${TMP_DIR}/cve_bin_tool_health_check.csv" ]] && rm -f -- "${TMP_DIR}/cve_bin_tool_health_check.csv"
 }
 
 dependency_check() {
@@ -272,7 +272,7 @@ dependency_check() {
     print_output "    Internet connection - \\c" "no_log"
 
     if [[ -d "${EXT_DIR}"/onlinechecker ]]; then
-      rm -rf "${EXT_DIR}"/onlinechecker 2>/dev/null
+      rm -rf -- "${EXT_DIR:?EXT_DIR is unset or empty}/onlinechecker" 2>/dev/null
     fi
 
     # the update check can be disabled via NO_UPDATE_CHECK
@@ -310,19 +310,19 @@ dependency_check() {
     fi
   fi
 
+  if [[ -f "${CONFIG_DIR}/ai_config.env" ]]; then
+    if grep -v -q "#" "${CONFIG_DIR}/ai_config.env"; then
+      # readin ai_config.env
+      while read -r LINE; do
+        if [[ "${LINE}" == *'='* ]] && [[ "${LINE}" != '#'* ]]; then
+          export "$(echo "${LINE}" | xargs)"
+        fi
+      done <"${CONFIG_DIR}/ai_config.env"
+    fi
+  fi
+
   # running into this in Quest container and on host, but not on isolated EMBA container (as it is CONTAINER_NUMBER 1):
   if [[ "${CONTAINER_NUMBER}" -ne 1 ]]; then
-    if [[ -f "${CONFIG_DIR}/ai_config.env" ]]; then
-      if grep -v -q "#" "${CONFIG_DIR}/ai_config.env"; then
-        # readin ai_config.env
-        while read -r LINE; do
-          if [[ "${LINE}" == *'='* ]] && [[ "${LINE}" != '#'* ]]; then
-            export "$(echo "${LINE}" | xargs)"
-          fi
-        done <"${CONFIG_DIR}/ai_config.env"
-      fi
-    fi
-
     # load the dependency track connection details from config
     if [[ -f "${CONFIG_DIR}/dependencytrack.env" ]]; then
       if grep -v -q "#" "${CONFIG_DIR}/dependencytrack.env"; then

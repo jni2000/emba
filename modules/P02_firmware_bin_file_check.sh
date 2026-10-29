@@ -13,6 +13,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner, Pascal Eckmann
+# Contributor(s): Mihai Macarie
 
 # Description:  Gives some very basic information about the provided firmware binary.
 # Pre-checker threading mode - if set to 1, these modules will run in threaded mode
@@ -23,6 +24,11 @@ P02_firmware_bin_file_check() {
   module_title "Binary firmware file analyzer"
   pre_module_reporter "${FUNCNAME[0]}"
   set_p02_default_exports
+  local lCLEANED_PATHS=0
+  remove_uprintable_paths "${LOG_DIR}/firmware" lCLEANED_PATHS || return 1
+  if [[ "${lCLEANED_PATHS}" -gt 0 ]] || { [[ -f "${P99_CSV_LOG}" ]] && grep -Fq ';@P99:' "${P99_CSV_LOG}"; }; then
+    invalidate_p99_path_cache || return 1
+  fi
 
   # we set this var global to 1 if we find something UEFI related
   export UEFI_DETECTED=0
@@ -64,7 +70,7 @@ get_fw_dir_details() {
   # we create a log file with all file hashes of the firmware directory
   # this is needed to check the firmware directory on a possible restart against this
   # file and decide if we can restart a firmware analysis process or not
-  find "${lFIRMWARE_PATH_DIR}" -type f -exec md5sum {} \; | sort -u | awk '{print $1}' >"${LOG_PATH_MODULE}/firmware_hashes.log" || true
+  find "${lFIRMWARE_PATH_DIR}" -type f -exec md5sum {} + | sort -u | awk '{print $1}' >"${LOG_PATH_MODULE}/firmware_hashes.log" || true
 }
 
 get_fw_file_details() {
@@ -151,6 +157,8 @@ generate_entropy_graph() {
     print_output "$("${BINWALK_BIN[@]}" --entropy --png "${lENTROPY_PIC_PATH}" "${lFIRMWARE_PATH_BIN}")"
     if [[ -s "${lENTROPY_PIC_PATH}" ]]; then
       write_link "${lENTROPY_PIC_PATH}"
+    else
+      rm -f -- "${lENTROPY_PIC_PATH}" || print_error "[-] P02 - entropy pic removal error"
     fi
   fi
 }
@@ -159,6 +167,7 @@ fw_bin_detector() {
   local lCHECK_FILE="${1:-}"
   local lCHECK_FILE_NAME=""
   lCHECK_FILE_NAME="$(basename "${lCHECK_FILE}")"
+  sanitize_firmware_basename lCHECK_FILE_NAME
   local lFILE_BIN_OUT=""
   local lHEX_FIRST_LINE=""
   local lQNAP_ENC_CHECK=""
@@ -180,7 +189,9 @@ fw_bin_detector() {
   lBMC_CHECK=$(grep -c "libipmi.so" "${LOG_PATH_MODULE}/strings_${lCHECK_FILE_NAME}.txt" || true)
   if [[ "${SBOM_MINIMAL:-0}" -ne 1 ]]; then
     lDJI_PRAK_ENC_CHECK=$(grep -c "PRAK\|RREK\|IAEK\|PUEK" "${LOG_PATH_MODULE}/strings_${lCHECK_FILE_NAME}.txt" || true)
-    lDJI_XV4_ENC_CHECK=$(grep -boUaP "\x78\x56\x34" "${lCHECK_FILE}" | grep -c "^0:" || true)
+    # only the first 3 bytes matter (magic at offset 0) - grepping the whole file buffers
+    # it as one "line" when it contains no newlines, which can exhaust memory on large files
+    lDJI_XV4_ENC_CHECK=$(head -c 3 "${lCHECK_FILE}" | grep -caP "^\x78\x56\x34" || true)
     # we are running binwalk on the file to analyze the output afterwards:
     "${BINWALK_BIN[@]}" "${lCHECK_FILE}" >"${LOG_PATH_MODULE}"/p02_binwalk_output.txt || true
     if [[ -f "${LOG_PATH_MODULE}"/p02_binwalk_output.txt ]]; then

@@ -38,10 +38,10 @@ F17_cve_bin_tool() {
   local MAX_MOD_THREADS=$((MAX_MOD_THREADS * 2))
 
   chmod +w "${LOG_PATH_MODULE}"
-  mkdir "${LOG_PATH_MODULE}/json/" || true
-  mkdir "${LOG_PATH_MODULE}/cve_sum/" || true
-  mkdir "${LOG_PATH_MODULE}/exploit/" || true
-  mkdir "${LOG_PATH_MODULE}/../sbom-report" || true
+  mkdir -- "${LOG_PATH_MODULE}/json/" || true
+  mkdir -- "${LOG_PATH_MODULE}/cve_sum/" || true
+  mkdir -- "${LOG_PATH_MODULE}/exploit/" || true
+  mkdir -- "${LOG_PATH_MODULE}/../sbom-report" || true
 
   # cve-bin-tool "${FIRMWARE_PATH_BAK}" --offline --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/cve-bin-tool-sbom.json" > "${LOG_PATH_MODULE}/cve-bin-tool-sbom.log"
   print_output "[*] cve-bin-tool scan of ${FIRMWARE_PATH_BAK} starting ..." "no_log"
@@ -83,7 +83,7 @@ F17_cve_bin_tool() {
   # first round is primarly for removing duplicates, unhandled_file entries and printing a quick initial overview for the html report
   # 2nd round is for the real testing
   local lWAIT_PIDS_TEMP=()
-  [[ ! -d "${LOG_PATH_MODULE}/tmp/" ]] && mkdir -p "${LOG_PATH_MODULE}/tmp/"
+  [[ ! -d "${LOG_PATH_MODULE}/tmp/" ]] && mkdir -p -- "${LOG_PATH_MODULE}/tmp/"
   for lSBOM_ENTRY in "${lSBOM_ARR[@]}"; do
     sbom_preprocessing_threader "${lSBOM_ENTRY}" &
     local lTMP_PID="$!"
@@ -264,7 +264,7 @@ F17_cve_bin_tool() {
 
     # Handle EMBA_sbom_vex_tmp.json if it exists
     if [[ -f "${SBOM_LOG_PATH}/EMBA_sbom_vex_tmp.json" ]]; then
-      rm "${SBOM_LOG_PATH}/EMBA_sbom_vex_tmp.json"
+      rm -- "${SBOM_LOG_PATH}/EMBA_sbom_vex_tmp.json"
     fi
   fi
 
@@ -546,13 +546,13 @@ cve_bin_tool_threader() {
   lPRODUCT_NAME="${lPRODUCT_NAME%\'}"
 
   if ! [[ -d "${LOG_PATH_MODULE}/cve_sum/" ]]; then
-    mkdir "${LOG_PATH_MODULE}/cve_sum/"
+    mkdir -- "${LOG_PATH_MODULE}/cve_sum/"
   fi
   if ! [[ -d "${LOG_PATH_MODULE}/json/" ]]; then
-    mkdir "${LOG_PATH_MODULE}/json/"
+    mkdir -- "${LOG_PATH_MODULE}/json/"
   fi
   if ! [[ -d "${LOG_PATH_MODULE}/exploit/" ]]; then
-    mkdir "${LOG_PATH_MODULE}/exploit/"
+    mkdir -- "${LOG_PATH_MODULE}/exploit/"
   fi
 
   print_output "[*] cve-bin-tool scan SBOM ${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" "no_log"
@@ -560,7 +560,7 @@ cve_bin_tool_threader() {
   python3 "${lCVE_BIN_TOOL}" -i "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" -l debug --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o "${LOG_PATH_MODULE}/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}" || true
 
   #  if [[ -f "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" ]]; then
-  #    rm "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" || true
+  #    rm -- "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" || true
   #  fi
 
   # walk through "${LOG_PATH_MODULE}/${lBOM_REF}_${lPROD}_${lVERS}".csv and check for exploits, EPSS and print as in F20
@@ -645,7 +645,7 @@ cve_bin_tool_threader() {
 
   # we can now delete the temp log file
   if [[ -f "${LOG_PATH_MODULE}/cve_sum/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}.txt" ]]; then
-    rm "${LOG_PATH_MODULE}/cve_sum/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}.txt" || true
+    rm -- "${LOG_PATH_MODULE}/cve_sum/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}.txt" || true
   fi
 
   # now, lets write the main f20 log file with the results of the current binary:
@@ -658,7 +658,7 @@ tear_down_cve_threader() {
   local lCVE_LINE="${1:-}"
   local lCVE_DATA_ARR=()
 
-  mapfile -t lCVE_DATA_ARR < <(echo "${lCVE_LINE}" | tr ',' '\n')
+  mapfile -t lCVE_DATA_ARR < <(tr ',' '\n' <<<"${lCVE_LINE}")
   # echo "lCVE_LINE: ${lCVE_LINE}"
   local lBOM_REF="${lCVE_DATA_ARR[*]:0:1}"
   local lORIG_SOURCE="${lCVE_DATA_ARR[*]:1:1}"
@@ -758,7 +758,7 @@ tear_down_cve_threader() {
 
     if [[ "${lBIN_NAME}" == *kernel* ]]; then
       for lKERNEL_CVE_EXPLOIT in "${KERNEL_CVE_EXPLOITS_ARR[@]}"; do
-        lKERNEL_CVE_EXPLOIT=$(echo "${lKERNEL_CVE_EXPLOIT}" | cut -d\; -f3)
+        lKERNEL_CVE_EXPLOIT=$(cut -d ';' -f3 <<<"${lKERNEL_CVE_EXPLOIT}") # field 3
         if [[ "${lKERNEL_CVE_EXPLOIT}" == "${lCVE_ID}" ]]; then
           lEXPLOIT="Exploit (linux-exploit-suggester"
           if [[ "${lTYPE}" != "NA" ]]; then
@@ -804,12 +804,12 @@ tear_down_cve_threader() {
 
     # now, we check the exploit-db results if we have a routersploit module:
     if [[ " ${lEXPLOIT_AVAIL_EDB_ARR[*]} " =~ "Exploit DB Id:" ]]; then
-      for lEID_VALUE in "${EXPLOIT_AVAIL_EDB_ARR[@]}"; do
-        if ! echo "${lEID_VALUE}" | grep -q "Exploit DB Id:"; then
+      for lEID_VALUE in "${lEXPLOIT_AVAIL_EDB_ARR[@]}"; do
+        if ! [[ "${lEID_VALUE}" == *"Exploit DB Id:"* ]]; then
           continue
         fi
         lEID_VALUE=$(echo "${lEID_VALUE}" | grep "Exploit DB Id:" | cut -d: -f2)
-        mapfile -t lEXPLOIT_AVAIL_ROUTERSPLOIT1_ARR < <(grep "${lEID_VALUE}" "${CONFIG_DIR}/routersploit_exploit-db.txt" 2>/dev/null || true)
+        mapfile -t -O "${#lEXPLOIT_AVAIL_ROUTERSPLOIT1_ARR[@]}" lEXPLOIT_AVAIL_ROUTERSPLOIT1_ARR < <(grep "${lEID_VALUE}" "${CONFIG_DIR}/routersploit_exploit-db.txt" 2>/dev/null || true)
       done
 
       readarray -t lEXPLOIT_IDS_ARR < <(echo "${lEXPLOIT_AVAIL_EDB_ARR[@]}" | grep "Exploit DB Id:" | cut -d ":" -f 2 | sed 's/[^0-9]*//g' | sed 's/\ //' | sort -u)
@@ -845,7 +845,7 @@ tear_down_cve_threader() {
       # copy the exploit-db exploits to the report
       for lEXPLOIT_ENTRY in "${lEXPLOIT_AVAIL_EDB_ARR[@]}"; do
         if [[ "${lEXPLOIT_ENTRY}" =~ "File:" ]]; then
-          lE_FILE=$(echo "${lEXPLOIT_ENTRY}" | awk '{print $2}')
+          lE_FILE=$(awk '{print $2}' <<<"${lEXPLOIT_ENTRY}") # field 2
           if [[ -f "${lE_FILE}" ]]; then
             cp "${lE_FILE}" "${LOG_PATH_MODULE}""/exploit/edb_""$(basename "${lE_FILE}")" || print_error "[-] Copy exploit error for ${lE_FILE}"
           fi
@@ -862,9 +862,9 @@ tear_down_cve_threader() {
 
       for lEXPLOIT_MSF in "${lEXPLOIT_AVAIL_MSF_ARR[@]}"; do
         if ! [[ -d "${MSF_INSTALL_PATH}" ]]; then
-          lEXPLOIT_PATH=$(echo "${lEXPLOIT_MSF}" | cut -d: -f1)
+          lEXPLOIT_PATH="${lEXPLOIT_MSF%%:*}" # field 1
         else
-          lEXPLOIT_PATH="${MSF_INSTALL_PATH}"$(echo "${lEXPLOIT_MSF}" | cut -d: -f1)
+          lEXPLOIT_PATH="${MSF_INSTALL_PATH}${lEXPLOIT_MSF%%:*}" # field 1
         fi
         lEXPLOIT_NAME=$(basename -s .rb "${lEXPLOIT_PATH}")
         lVEX_EXPLOIT_PROP_ARRAY_ARR+=("exploit:MSF:${lEXPLOIT_NAME}")
@@ -900,7 +900,7 @@ tear_down_cve_threader() {
       fi
 
       for lEXPLOIT_SNYK in "${lEXPLOIT_AVAIL_SNYK_ARR[@]}"; do
-        lEXPLOIT_NAME=$(echo "${lEXPLOIT_SNYK}" | cut -d\; -f2)
+        lEXPLOIT_NAME=$(cut -d ';' -f2 <<<"${lEXPLOIT_SNYK}") # field 2
         lVEX_EXPLOIT_PROP_ARRAY_ARR+=("exploit:SNYK:${lEXPLOIT_NAME}")
         lEXPLOIT+=" ${lEXPLOIT_NAME}"
         if [[ "${lTYPE}" != "NA" ]]; then
@@ -961,7 +961,7 @@ tear_down_cve_threader() {
       local lEXPLOIT_ROUTERSPLOIT_ARR=("${lEXPLOIT_AVAIL_ROUTERSPLOIT_ARR[@]}" "${lEXPLOIT_AVAIL_ROUTERSPLOIT1_ARR[@]}")
 
       for lEXPLOIT_RS in "${lEXPLOIT_ROUTERSPLOIT_ARR[@]}"; do
-        lEXPLOIT_PATH=$(echo "${lEXPLOIT_RS}" | cut -d: -f1)
+        lEXPLOIT_PATH="${lEXPLOIT_RS%%:*}" # field 1
         lEXPLOIT_NAME=$(basename -s .py "${lEXPLOIT_PATH}")
         lVEX_EXPLOIT_PROP_ARRAY_ARR+=("exploit:RS:${lEXPLOIT_NAME}")
         lEXPLOIT+=" ${lEXPLOIT_NAME}"
@@ -1080,7 +1080,7 @@ tear_down_cve_threader() {
   jq . "${LOG_PATH_MODULE}/json/${lVULN_BOM_REF}_${lPRODUCT_NAME}_${lVERS}.tmp.json" >"${LOG_PATH_MODULE}/json/${lVULN_BOM_REF}_${lPRODUCT_NAME}_${lVERS}.json"
 
   # cleanup
-  rm "${LOG_PATH_MODULE}/json/${lVULN_BOM_REF}_${lPRODUCT_NAME}_${lVERS}.tmp.json" || true
+  rm -- "${LOG_PATH_MODULE}/json/${lVULN_BOM_REF}_${lPRODUCT_NAME}_${lVERS}.tmp.json" || true
 }
 
 get_kernel_s25_data() {
@@ -1101,14 +1101,14 @@ get_epss_data() {
   local lEPSS_DATA=""
   local lCVE_YEAR=""
 
-  lCVE_YEAR="$(echo "${lCVE_ID}" | cut -d '-' -f2)"
+  lCVE_YEAR="$(cut -d '-' -f2 <<<"${lCVE_ID}")" # field 2
   lCVE_EPSS_PATH="${EPSS_DATA_PATH}/CVE_${lCVE_YEAR}_EPSS.csv"
   if [[ -f "${lCVE_EPSS_PATH}" ]]; then
     lEPSS_DATA=$(grep "^${lCVE_ID};" "${lCVE_EPSS_PATH}" || true)
-    lEPSS_PERC=$(echo "${lEPSS_DATA}" | cut -d ';' -f3)
+    lEPSS_PERC=$(cut -d ';' -f3 <<<"${lEPSS_DATA}") # field 3
     lEPSS_PERC=$(echo "${lEPSS_PERC} 100" | awk '{printf "%d", $1 * $2}')
     # just cut it for now ...
-    lEPSS_EPSS=$(echo "${lEPSS_DATA}" | cut -d ';' -f2)
+    lEPSS_EPSS=$(cut -d ';' -f2 <<<"${lEPSS_DATA}") # field 2
     lEPSS_EPSS=$(echo "${lEPSS_EPSS} 100" | awk '{printf "%d", $1 * $2}')
   fi
   [[ ! "${lEPSS_EPSS}" =~ ^[0-9]+$ ]] && lEPSS_EPSS="NA"

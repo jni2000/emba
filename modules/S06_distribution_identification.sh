@@ -65,9 +65,9 @@ S06_distribution_identification() {
         if [[ -f "${lFILE}" ]]; then
           lPATTERN="$(safe_echo "${lCONFIG}" | cut -d\; -f3)"
           # do not use safe_echo for lSED_COMMAND
-          lSED_COMMAND="$(echo "${lCONFIG}" | cut -d\; -f4)"
+          lSED_COMMAND="$(cut -d ';' -f4 <<<"${lCONFIG}")" # field 4
           lFILE_QUOTED=$(escape_echo "${lFILE}")
-          lOUT1="$(eval "${lPATTERN}" "${lFILE_QUOTED}" || true)"
+          lOUT1="$(run_distri_identifier_pattern "${lPATTERN}" "${lFILE_QUOTED}")"
           lOUT1="${lOUT1//\'/}"
           # print_output "lCONFIG: ${lCONFIG}"
           # print_output "lPATTERN: ${lPATTERN}"
@@ -78,7 +78,7 @@ S06_distribution_identification() {
           lOUT1="${lOUT1//\"/}"
           # print_output "identified mod: ${lOUT1}"
           if [[ -n "${lSED_COMMAND}" ]]; then
-            lIDENTIFIER=$(echo "${lOUT1}" | eval "${lSED_COMMAND}" | sed 's/  \+/ /g' | sed 's/ $//' || true)
+            lIDENTIFIER=$(normalize_distri_identifier "${lOUT1}" "${lSED_COMMAND}")
           else
             lIDENTIFIER=$(echo "${lOUT1}" | sed 's/  \+/ /g' | sed 's/ $//' || true)
           fi
@@ -103,8 +103,8 @@ S06_distribution_identification() {
             print_output "[+] Version information found ${ORANGE}${lIDENTIFIER}${GREEN} in file ${ORANGE}$(print_path "${lFILE}")${GREEN} with Linux distribution detection"
             copy_and_link_file "${lFILE}" "${lLOG_DEST_PATH}"
             lCSV_RULE=$(get_csv_rule_distri "${lIDENTIFIER}")
-            write_csv_log "${lFILE}" "Linux" "${lIDENTIFIER}" "${lCSV_RULE}"
-            lCPE_IDENTIFIER="cpe:${CPE_VERSION}${lCSV_RULE}:*:*:*:*:*:*"
+            # lCPE_IDENTIFIER="cpe:${CPE_VERSION}${lCSV_RULE}:*:*:*:*:*:*"
+            lCPE_IDENTIFIER=$(build_cpe_identifier "${lCSV_RULE}" "o")
             lOS_IDENTIFIED=$(distri_check)
             lPURL_IDENTIFIER=$(build_generic_purl "${lCSV_RULE}" "${lOS_IDENTIFIED}" "${lBIN_ARCH:-NA}")
             write_log "${lPACKAGING_SYSTEM};${lFILE:-NA};${lMD5_CHECKSUM:-NA}/${lSHA256_CHECKSUM:-NA}/${lSHA512_CHECKSUM:-NA};${lFILENAME};${lIDENTIFIER:-NA};${lCSV_RULE:-NA};${LIC:-NA};maintainer unknown;NA;${lCPE_IDENTIFIER};${lPURL_IDENTIFIER};Linux distribution identification module" "${S08_CSV_LOG}"
@@ -125,16 +125,17 @@ S06_distribution_identification() {
               write_csv_log "${lFILE}" "Linux" "${lIDENTIFIER}" "${lCSV_RULE}"
             fi
             # lCSV_RULE has 5 fields and looks like the following: :dlink:device:version:*
-            lCPE_IDENTIFIER="cpe:${CPE_VERSION}${lCSV_RULE}:*:*:*:*:*:*"
+            # lCPE_IDENTIFIER="cpe:${CPE_VERSION}${lCSV_RULE}:*:*:*:*:*:*"
+            lCPE_IDENTIFIER=$(build_cpe_identifier "${lCSV_RULE}" "o")
             lOS_IDENTIFIED=$(distri_check)
             local lAPP_TYPE="operating-system"
             local lAPP_LIC=""
             local lAPP_MAINT=""
-            lAPP_MAINT=$(echo "${lCSV_RULE}" | cut -d ':' -f2)
+            lAPP_MAINT=$(cut -d ':' -f2 <<<"${lCSV_RULE}") # field 2
             local lAPP_NAME=""
-            lAPP_NAME=$(echo "${lCSV_RULE}" | cut -d ':' -f3)
+            lAPP_NAME=$(cut -d ':' -f3 <<<"${lCSV_RULE}") # field 3
             local lAPP_VERS=""
-            lAPP_VERS=$(echo "${lCSV_RULE}" | cut -d ':' -f4-5)
+            lAPP_VERS=$(cut -d ':' -f4-5 <<<"${lCSV_RULE}") # fields 4-5
             # it could be that we have a version like 2.14b:* -> we remove the last field
             lAPP_VERS="${lAPP_VERS/:\*/}"
             # we use the already (p99) identified architecture for the distri
@@ -174,6 +175,33 @@ S06_distribution_identification() {
 
   write_log ""
   module_end_log "${FUNCNAME[0]}" "${lOUTPUT}"
+}
+
+run_distri_identifier_pattern() {
+  local lPATTERN="${1:-}"
+  local lFILE_QUOTED="${2:-}"
+  local lOUT1=""
+
+  if [[ -z "${lPATTERN}" ]] || [[ -z "${lFILE_QUOTED}" ]]; then
+    return
+  fi
+
+  lOUT1="$(eval "${lPATTERN}" "${lFILE_QUOTED}" || true)"
+  printf "%s" "${lOUT1}"
+}
+
+normalize_distri_identifier() {
+  local lRAW_IDENTIFIER="${1:-}"
+  local lSED_COMMAND="${2:-}"
+  local lIDENTIFIER=""
+
+  if [[ -n "${lSED_COMMAND}" ]]; then
+    lIDENTIFIER=$(echo "${lRAW_IDENTIFIER}" | eval "${lSED_COMMAND}" | sed 's/  \+/ /g' | sed 's/ $//' || true)
+  else
+    lIDENTIFIER=$(echo "${lRAW_IDENTIFIER}" | sed 's/  \+/ /g' | sed 's/ $//' || true)
+  fi
+
+  printf "%s" "${lIDENTIFIER}"
 }
 
 dlink_image_sign() {

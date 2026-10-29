@@ -25,15 +25,29 @@ S130_binary_map_builder() {
 
   module_wait "S115_usermode_emulator"
 
+  # default behavior:
+  local lSVG_BUILD_TIMEOUT=0
+  lSVG_BUILD_TIMEOUT="$(convert_timeformat "${SVG_BUILD_TIMEOUT:-0s}")"
+  # if we have a AI_MIN_RUNTIME set and this is bigger then our current S16_MIN_RUNTIME we adjust S16 to the AI runtime
+  if [[ "${AI_OPTION}" -gt 0 ]]; then
+    AI_MIN_RUNTIME="$(convert_timeformat "${AI_MIN_RUNTIME:-0s}")"
+    if [[ "${lSVG_BUILD_TIMEOUT}" -lt "${AI_MIN_RUNTIME}" ]]; then
+      print_output "[*] S130 - setting minimum runtime to AI_MIN_RUNTIME - ${AI_MIN_RUNTIME} seconds"
+      lSVG_BUILD_TIMEOUT="${AI_MIN_RUNTIME}"
+      # start timer for track the runtime of the module
+      export SECONDS=0
+    fi
+  fi
+
   # needed if we start the module standalone via the helper script
-  [[ ! -d "${LOG_PATH_MODULE}" ]] && mkdir -p "${LOG_PATH_MODULE}"
+  [[ ! -d "${LOG_PATH_MODULE}" ]] && mkdir -p -- "${LOG_PATH_MODULE}"
 
   load_default_environment
   setup_environment
   build_dot
 
   if [[ -f "${DOT_FILE}" ]]; then
-    build_svg
+    build_svg "${lSVG_BUILD_TIMEOUT}" "${SECONDS}"
     # as soon as we have a dot file generated we build the HTML report file for this module
     lNEG_LOG=1
   fi
@@ -88,9 +102,9 @@ load_default_environment() {
 
   # system emulation checks are only possible in standalone run via the helper script
   # During EMBA run the system emulation results are not available
-  if ! [[ -f "${L10_SYS_EMU_RESULTS}" ]]; then
+  if ! [[ -f "${L10_CSV_LOG}" ]]; then
     print_ln ""
-    print_output "[-] No system emualtion checks possible - missing L10 EMBA log directory (future extension)"
+    print_output "[-] No system emulation checks possible - missing L10 EMBA log directory (future extension)"
     DETECTION_MECHANISMS_ARR=("${DETECTION_MECHANISMS_ARR[@]/QEMU-SYS/}")
   fi
 
@@ -115,8 +129,8 @@ load_default_environment() {
 
   export DOT_FILE="${LOG_PATH_MODULE}/EMBA-dependency-map.dot"
   export DOT_FILE_tmp_dir="${LOG_PATH_MODULE}/tmp_dot"
-  rm -rf "${DOT_FILE_tmp_dir}"
-  mkdir "${DOT_FILE_tmp_dir}"
+  rm -rf -- "${DOT_FILE_tmp_dir:?DOT_FILE_tmp_dir is unset or empty}"
+  mkdir -- "${DOT_FILE_tmp_dir}"
 
   # External assets - downloaded once for offline capability.
   export JS_LIB="${EXT_DIR}/svg-pan-zoom.min.js"
@@ -176,7 +190,7 @@ system_emulator_init_runner() {
   print_output "[*] Identified the following system emulation details"
   print_output "  ->  ${lSYS_EMU_ENTRY}"
 
-  lEMU_PATH=$(echo "${lSYS_EMU_ENTRY}" | cut -d ';' -f11)
+  lEMU_PATH=$(cut -d ';' -f11 <<<"${lSYS_EMU_ENTRY}") # field 11
   lEMU_PATH=${LOG_DIR}"/l10_system_emulation/${lEMU_PATH}"
   if [[ ! -d "${lEMU_PATH}" ]]; then
     print_output "[-] No system emulation results available ... no checks performed"
@@ -184,7 +198,7 @@ system_emulator_init_runner() {
   fi
 
   print_output "[*] Adjusting emulation runner script ..."
-  cp -r "${lEMU_PATH}" "${LOG_PATH_MODULE}/emulation_engine" || {
+  cp -r -- "${lEMU_PATH}" "${LOG_PATH_MODULE}/emulation_engine" || {
     print_error "[-] S130 - Adjusting emulation runner script failed"
     return
   }
@@ -205,7 +219,7 @@ system_emulator_init_runner() {
     return
   }
 
-  if [[ ${EUID} -eq 0 ]]; then
+  if [[ "${EUID}" -eq 0 ]]; then
     timeout 360s ./run.sh
   else
     sudo timeout 360s ./run.sh
@@ -217,16 +231,16 @@ system_emulator_init_runner() {
   lTAP_INTERFACE=$(grep "ip route flush" ./run.sh || true)
   lTAP_INTERFACE=${lTAP_INTERFACE//*\ /}
   if [[ -n "${lTAP_INTERFACE}" ]]; then
-    if [[ ${EUID} -eq 0 ]]; then
+    if [[ "${EUID}" -eq 0 ]]; then
       ip route flush dev "${lTAP_INTERFACE}"
       ip link set "${lTAP_INTERFACE}" down
-      ip link delete "${lTAP_INTERFACE}"
-      tunctl -d "${lTAP_INTERFACE}"
+      # ip link delete "${lTAP_INTERFACE}"
+      ip tuntap del dev "${lTAP_INTERFACE}" mode tap
     else
       sudo ip route flush dev "${lTAP_INTERFACE}"
       sudo ip link set "${lTAP_INTERFACE}" down
-      sudo ip link delete "${lTAP_INTERFACE}"
-      sudo tunctl -d "${lTAP_INTERFACE}"
+      # sudo ip link delete "${lTAP_INTERFACE}"
+      sudo ip tuntap del dev "${lTAP_INTERFACE}" mode tap
     fi
   fi
 
@@ -387,7 +401,7 @@ get_arch() {
   if [[ "${lFILE_OUTPUT}" == *"ELF"* ]]; then
     # e.g. ELF 32-bit LSB shared object, MIPS, MIPS32 version 1 (SYSV)
     # -> we need the part after the ','
-    lARCH=$(echo "${lFILE_OUTPUT}" | cut -d ',' -f2-3)
+    lARCH=$(cut -d ',' -f2-3 <<<"${lFILE_OUTPUT}") # fields 2-3
   else
     # e.g. HTML document, ASCII text, with CRLF line terminators
     # -> we need the part in front of the ','
@@ -801,10 +815,25 @@ build_dot() {
 }
 
 build_svg() {
+  local lSVG_BUILD_TIMEOUT="${1:-}"
+  export SECONDS="${2:-}"
+
   sub_module_title "SVG dependency map"
 
-  print_output "[*] Generating Neato map with overlap prevention" "no_log"
-  timeout --preserve-status --signal SIGINT "${SVG_BUILD_TIMEOUT}" neato -Goverlap=false -Gsep=+20 -Tsvg "${DOT_FILE}" -o "${SVG_FILE}" || print_output "[-] WARNING: Neato SVG generation failed"
+  # Adjust the max runtime for neato with the current runtime on AI enabled runs
+  # On non AI runs we are using the defined/default SVG_BUILD_TIMEOUT
+  if [[ "${AI_OPTION}" -gt 0 ]]; then
+    lSVG_BUILD_TIMEOUT=$((lSVG_BUILD_TIMEOUT - SECONDS))
+  fi
+
+  # minimum Neato runtime of 60 seconds
+  if [[ "${lSVG_BUILD_TIMEOUT}" -lt 60 ]]; then
+    print_error "[*] Out of time for building binary map with neato"
+    return
+  fi
+
+  print_output "[*] Generating Neato map with overlap prevention - runtime max ${lSVG_BUILD_TIMEOUT} seconds"
+  timeout --preserve-status --signal SIGINT "${lSVG_BUILD_TIMEOUT}s" neato -Goverlap=false -Gsep=+20 -Tsvg "${DOT_FILE}" -o "${SVG_FILE}" || print_output "[-] WARNING: Neato SVG generation failed"
 
   # probably some future extension:
   # in case the neato generator failed
