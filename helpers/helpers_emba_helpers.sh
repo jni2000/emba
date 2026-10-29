@@ -620,7 +620,6 @@ restore_permissions() {
     lORIG_UID="$(grep "UID" "${LOG_DIR}"/orig_user.log | awk '{print $2}')"
     lORIG_GID="$(grep "GID" "${LOG_DIR}"/orig_user.log | awk '{print $2}')"
     chown "${lORIG_UID}":"${lORIG_GID}" "${LOG_DIR}" -R || true
-    # rm "${LOG_DIR}"/orig_user.log || true
     # rm -- "${BASIC_DATA_LOG_DIR}"/orig_user.log || true
   fi
 }

@@ -103,6 +103,7 @@ S06_distribution_identification() {
             print_output "[+] Version information found ${ORANGE}${lIDENTIFIER}${GREEN} in file ${ORANGE}$(print_path "${lFILE}")${GREEN} with Linux distribution detection"
             copy_and_link_file "${lFILE}" "${lLOG_DEST_PATH}"
             lCSV_RULE=$(get_csv_rule_distri "${lIDENTIFIER}")
+            write_csv_log "${lFILE}" "Linux" "${lIDENTIFIER}" "${lCSV_RULE}"
             # lCPE_IDENTIFIER="cpe:${CPE_VERSION}${lCSV_RULE}:*:*:*:*:*:*"
             lCPE_IDENTIFIER=$(build_cpe_identifier "${lCSV_RULE}" "o")
             lOS_IDENTIFIED=$(distri_check)
