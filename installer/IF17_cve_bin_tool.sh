@@ -45,6 +45,7 @@ IF17_cve_bin_tool() {
       git clone https://github.com/jni2000/cve-bin-tool.git external/cve-bin-tool
       cd external/cve-bin-tool || (echo "Could not install EMBA component cve-bin-tool" && exit 1)
       git checkout sodiacs
+      pip install -U -r requirements.txt
       python3 -m pip install -e .
 
       # we need a more up to date protobuf for the android extractor -> lets update it now
