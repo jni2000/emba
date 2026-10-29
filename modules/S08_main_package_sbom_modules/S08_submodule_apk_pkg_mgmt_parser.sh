@@ -54,7 +54,7 @@ S08_submodule_apk_pkg_mgmt_parser() {
       lPKG_CHECKED_ARR+=("${lPKG_MD5}")
 
       if [[ ! -d "${LOG_PATH_MODULE}"/apk_tmp_db ]]; then
-        mkdir "${LOG_PATH_MODULE}"/apk_tmp_db
+        mkdir -- "${LOG_PATH_MODULE}"/apk_tmp_db
       fi
       if grep -q "^C:" "${lPACKAGE_FILE}" 2>/dev/null; then
         # split lPACKAGE_FILE on empty lines into separate package entry files for further processing
@@ -147,7 +147,8 @@ apk_pkg_analysis_threader() {
   fi
   lPURL_IDENTIFIER=$(build_purl_identifier "${lOS_IDENTIFIED:-NA}" "apk" "${lAPP_NAME:-NA}" "${lAPP_VERS:-NA}" "${lAPP_ARCH:-NA}")
   lAPP_VENDOR="${lAPP_NAME}"
-  lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}:*:*:*:*:*:*"
+  # lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}:*:*:*:*:*:*"
+  lCPE_IDENTIFIER=$(build_cpe_identifier ":${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}")
   local lSTRIPPED_VERSION="::${lAPP_NAME}:${lAPP_VERS:-NA}"
 
   # add source file path information to our properties array:

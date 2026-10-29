@@ -37,8 +37,8 @@ S02_UEFI_FwHunt() {
     fwhunter "${FIRMWARE_PATH_BAK}"
     if [[ $(grep -c "FwHunt rule" "${LOG_PATH_MODULE}""/fwhunt_scan_"* | cut -d: -f2 | awk '{ SUM += $1} END { print SUM }' || true) -eq 0 ]]; then
       while read -r lFILE_DETAILS; do
-        lEXTRACTED_FILE=$(echo "${lFILE_DETAILS}" | cut -d ';' -f2)
-        if [[ ${THREADED} -eq 1 ]]; then
+        lEXTRACTED_FILE=$(cut -d ';' -f2 <<<"${lFILE_DETAILS}") # field 2
+        if [[ "${THREADED}" -eq 1 ]]; then
           fwhunter "${lEXTRACTED_FILE}" &
           local lTMP_PID="$!"
           store_kill_pids "${lTMP_PID}"
@@ -51,7 +51,7 @@ S02_UEFI_FwHunt() {
     fi
   fi
 
-  [[ ${THREADED} -eq 1 ]] && wait_for_pid "${lWAIT_PIDS_S02_ARR[@]}"
+  [[ "${THREADED}" -eq 1 ]] && wait_for_pid "${lWAIT_PIDS_S02_ARR[@]}"
 
   fwhunter_logging
 
@@ -78,7 +78,7 @@ fwhunter() {
 
   # delete empty log files
   if [[ $(wc -l <"${LOG_PATH_MODULE}""/fwhunt_scan_${lFWHUNTER_CHECK_FILE_NAME}.txt") -eq 1 ]]; then
-    rm "${LOG_PATH_MODULE}""/fwhunt_scan_${lFWHUNTER_CHECK_FILE_NAME}.txt" || true
+    rm -- "${LOG_PATH_MODULE}""/fwhunt_scan_${lFWHUNTER_CHECK_FILE_NAME}.txt" || true
   fi
 }
 
@@ -111,8 +111,8 @@ fwhunter_logging() {
   for lFWHUNTER_RESULT in "${FWHUNTER_RESULTS_ARR[@]}"; do
     local lCVE_RESULTS_BINARLY_ARR=()
 
-    lFWHUNTER_RESULT_FILE=$(echo "${lFWHUNTER_RESULT}" | cut -d: -f1)
-    lFWHUNTER_RESULT=$(echo "${lFWHUNTER_RESULT}" | cut -d: -f2-)
+    lFWHUNTER_RESULT_FILE="${lFWHUNTER_RESULT%%:*}" # field 1
+    lFWHUNTER_RESULT="${lFWHUNTER_RESULT#*:}"       # field 2-
     lFWHUNTER_BINARLY_ID=$(echo "${lFWHUNTER_RESULT}" | grep -E -o "BRLY-[0-9]+-[0-9]+" | sort -u || true)
     lFWHUNTER_CVE_ID=$(echo "${lFWHUNTER_RESULT}" | grep -E -o "CVE-[0-9]+-[0-9]+" | sort -u || true)
     # lCVE_RESULTS_BINARLY_ARR+=("${lFWHUNTER_CVE_ID}")

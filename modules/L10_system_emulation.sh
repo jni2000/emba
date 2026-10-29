@@ -57,7 +57,6 @@ L10_system_emulation() {
     local lR_PATH_CNT=1
     local lIP_ADDRESS=""
     export R_PATH=""
-    export MIN_TCP_SERV=2
     ### export IP_ADDRESS_=""
 
     # if we have a supported arch we move on with out emulation attempt
@@ -73,14 +72,14 @@ L10_system_emulation() {
       find "${LOG_PATH_MODULE}" -name "run.sh" --delete 2>/dev/null || true
 
       # handling restarted scans with old emulation processes:
-      if [[ -f "${L10_SYS_EMU_RESULTS}" ]] && grep -q "L10_system_emulation finished" "${LOG_DIR}"/emba.log; then
+      if [[ -f "${L10_CSV_LOG}" ]] && grep -q "L10_system_emulation finished" "${LOG_DIR}"/emba.log; then
         print_ln
         print_output "[*] Found finished emulation process - trying to recover old emulation process"
 
-        lEMULATION_ENTRY="$(grep "TCP ok" "${L10_SYS_EMU_RESULTS}" | sort -k 7 -t ';' | tail -1)"
-        lIP_ADDRESS=$(grep "TCP ok" "${L10_SYS_EMU_RESULTS}" | sort -k 7 -t ';' | tail -1 | cut -d\; -f9 | awk '{print $3}')
-        lIMAGE_DIR="$(grep "TCP ok" "${L10_SYS_EMU_RESULTS}" | sort -k 7 -t ';' | tail -1 | cut -d\; -f11)"
-        ARCHIVE_PATH="${OLD_LOG_DIR}""/""${lIMAGE_DIR}"
+        lEMULATION_ENTRY="$(grep "TCP ok" "${L10_CSV_LOG}" | sort -k 7 -t ';' | tail -1)"
+        lIP_ADDRESS=$(grep "TCP ok" "${L10_CSV_LOG}" | sort -k 7 -t ';' | tail -1 | cut -d\; -f9 | awk '{print $3}')
+        lIMAGE_DIR="$(grep "TCP ok" "${L10_CSV_LOG}" | sort -k 7 -t ';' | tail -1 | cut -d\; -f11)"
+        ARCHIVE_PATH="${OLD_LOG_DIR}/${lIMAGE_DIR}"
 
         print_output "[*] Recovered IP address: ${ORANGE}${lIP_ADDRESS}${NC}"
         print_output "[*] Recovered IMAGE_DIR: ${ORANGE}${lIMAGE_DIR}${NC}"
@@ -154,7 +153,7 @@ L10_system_emulation() {
             main_emulation "${R_PATH}" "${lARCH_END}"
 
             if [[ -d "${MNT_POINT}" ]]; then
-              rm -r "${MNT_POINT}" || true
+              rm -r -- "${MNT_POINT}" || true
             fi
 
             if [[ "${SYS_ONLINE}" -eq 1 ]] && [[ "${TCP}" == "ok" ]]; then
@@ -180,14 +179,14 @@ L10_system_emulation() {
     fi
   fi
 
-  if [[ "${lMODULE_END}" -ne 0 ]] && [[ -f "${L10_SYS_EMU_RESULTS}" ]]; then
-    if [[ $(grep -c "TCP ok" "${L10_SYS_EMU_RESULTS}" || true) -gt 0 ]]; then
+  if [[ "${lMODULE_END}" -ne 0 ]] && [[ -f "${L10_CSV_LOG}" ]]; then
+    if [[ $(grep -c "TCP ok" "${L10_CSV_LOG}" || true) -gt 0 ]]; then
       print_ln
       print_output "[+] Identified the following system emulation results (with running network services):"
       export HOSTNETDEV_ARR=()
       local lIMAGE_DIR=""
       local lSYS_EMUL_POS_ENTRY=""
-      lSYS_EMUL_POS_ENTRY="$(grep "TCP ok" "${L10_SYS_EMU_RESULTS}" | sort -t ';' -k7 -n -r | head -1 || true)"
+      lSYS_EMUL_POS_ENTRY="$(grep "TCP ok" "${L10_CSV_LOG}" | sort -t ';' -k7 -n -r | head -1 || true)"
       print_output "$(indent "$(orange "${lSYS_EMUL_POS_ENTRY}")")"
 
       lIP_ADDRESS=$(echo "${lSYS_EMUL_POS_ENTRY}" | grep "TCP ok" | sort -k 7 -t ';' | tail -1 | cut -d\; -f9 | awk '{print $3}')
@@ -239,7 +238,7 @@ check_bmc_supermicro() {
 }
 
 print_system_emulation_results() {
-  if [[ -f "${L10_SYS_EMU_RESULTS}" ]]; then
+  if [[ -f "${L10_CSV_LOG}" ]]; then
     sub_module_title "System emulation results"
     print_output "EMBA was able to identify the following system emulation results:"
     print_ln
@@ -247,13 +246,13 @@ print_system_emulation_results() {
     local lEMU_RES=""
 
     while read -r lEMU_RES; do
-      lEMU_RES=$(echo "${lEMU_RES}" | cut -d\; -f2-)
+      lEMU_RES="${lEMU_RES#*;}" # field 2-
       if [[ "${lEMU_RES}" == *"ICMP ok"* ]] || [[ "${lEMU_RES}" == *"TCP-0 ok"* ]] || [[ "${lEMU_RES}" == *"TCP ok"* ]]; then
         print_output "[+] ${lEMU_RES}"
       else
         print_output "[*] ${lEMU_RES}"
       fi
-    done <"${L10_SYS_EMU_RESULTS}"
+    done <"${L10_CSV_LOG}"
   fi
 }
 
@@ -266,7 +265,7 @@ pre_cleanup_emulator() {
   mapfile -t lCHECK_MOUNTS_ARR < <(mount | grep "${LOG_DIR}" | grep "proc\|sys\|run" || true)
   for lMOUNT in "${lCHECK_MOUNTS_ARR[@]}"; do
     print_output "[*] Unmounting ${lMOUNT}" "no_log"
-    lMOUNT=$(echo "${lMOUNT}" | cut -d\  -f3)
+    lMOUNT="$(cut -d' ' -f3 <<<"${lMOUNT}")" # field 3
     umount -l "${lMOUNT}" || true
   done
 }
@@ -278,7 +277,7 @@ cleanup_tap() {
   mapfile -t lTAP_CLEAN_ARR < <(ifconfig | grep tap | cut -d: -f1 || true)
   for lTAP_TO_CLEAN in "${lTAP_CLEAN_ARR[@]}"; do
     print_output "[*] Cleaning up TAP interface ${lTAP_TO_CLEAN}"
-    tunctl -d "${lTAP_TO_CLEAN}" || print_error "[-] Error in tap cleanup"
+    ip tuntap del dev "${lTAP_TO_CLEAN}" mode tap || print_error "[-] Error in tap cleanup"
   done
 }
 
@@ -301,7 +300,7 @@ create_emulation_filesystem() {
   if [[ -d "${MNT_POINT}" ]]; then
     MNT_POINT="${MNT_POINT}"-"${RANDOM}"
   fi
-  mkdir "${MNT_POINT}" || true
+  mkdir -- "${MNT_POINT}" || true
 
   print_output "[*] Create Qemu filesystem for emulation - ${lROOT_PATH}.\\n"
   lIMAGE_SIZE="$(du -b --max-depth=0 "${lROOT_PATH}" | awk '{print $1}')"
@@ -347,7 +346,7 @@ create_emulation_filesystem() {
 
   if mount | grep -q "${MNT_POINT}"; then
     print_output "[*] Copy extracted root filesystem to new QEMU image"
-    cp -prf "${lROOT_PATH}"/* "${MNT_POINT}"/ || (print_output "[-] Warning: Root filesystem not copied!" && return)
+    cp -prf -- "${lROOT_PATH}"/* "${MNT_POINT}/" || (print_output "[-] Warning: Root filesystem not copied!" && return)
 
     print_output "[*] Binwalk v3+ creates raw files on extraction. We remove these files from our emulation root directory"
     find "${MNT_POINT}" -name "*.raw" -delete || true
@@ -358,8 +357,8 @@ create_emulation_filesystem() {
     "${HELP_DIR}"/fix_bins_lnk_emulation.sh "${MNT_POINT}"
 
     print_output "[*] Creating EMBA emulation helper directories within the firmware environment"
-    mkdir -p "${MNT_POINT}/firmadyne/libnvram/" || true
-    mkdir -p "${MNT_POINT}/firmadyne/libnvram.override/" || true
+    mkdir -p -- "${MNT_POINT}/firmadyne/libnvram/" || true
+    mkdir -p -- "${MNT_POINT}/firmadyne/libnvram.override/" || true
 
     print_output "[*] Patching filesystem (chroot)"
     cp "$(command -v busybox)" "${MNT_POINT}" || true
@@ -415,13 +414,13 @@ create_emulation_filesystem() {
     if [[ -e "${MNT_POINT}/kernelInit" ]]; then
       print_output "[*] Backup ${MNT_POINT}/kernelInit:"
       tee -a "${LOG_FILE}" <"${MNT_POINT}/kernelInit"
-      rm "${MNT_POINT}/kernelInit"
+      rm -- "${MNT_POINT}/kernelInit"
     fi
 
-    rm "${MNT_POINT}/fixImage.sh" || true
-    rm "${MNT_POINT}/inferFile.sh" || true
-    rm "${MNT_POINT}/busybox" || true
-    rm "${MNT_POINT}/bash-static" || true
+    rm -- "${MNT_POINT}/fixImage.sh" || true
+    rm -- "${MNT_POINT}/inferFile.sh" || true
+    rm -- "${MNT_POINT}/busybox" || true
+    rm -- "${MNT_POINT}/bash-static" || true
 
     print_output "[*] Setting up system mode emulation environment on target filesystem"
     # FirmAE/firmadyne recompiled binaries + addons
@@ -477,7 +476,7 @@ create_emulation_filesystem() {
     for lNVRAM_FILE in "${lNVRAM_FILE_LIST[@]}"; do
       if file "${lNVRAM_FILE}" | grep -q "ASCII text"; then
         if ! [[ -d "${LOG_PATH_MODULE}"/nvram ]]; then
-          mkdir "${LOG_PATH_MODULE}"/nvram
+          mkdir -- "${LOG_PATH_MODULE}"/nvram
         fi
         lNVRAM_FILE="${lNVRAM_FILE/\./}"
         print_output "[*] Found possible NVRAM default file ${ORANGE}${lNVRAM_FILE}${NC} -> setup /firmadyne directory"
@@ -500,18 +499,18 @@ link_libnvram_so() {
 
   # ensure we have a dbg libnvram for the initial identification
   if [[ -s "${lMNT_POINT}/firmadyne/libnvram.so" ]]; then
-    rm "${lMNT_POINT}/firmadyne/libnvram.so"
+    rm -- "${lMNT_POINT}/firmadyne/libnvram.so"
   fi
   if [[ -s "${lMNT_POINT}/firmadyne/libnvram_ioctl.so" ]]; then
-    rm "${lMNT_POINT}/firmadyne/libnvram_ioctl.so"
+    rm -- "${lMNT_POINT}/firmadyne/libnvram_ioctl.so"
   fi
   if [[ -f "${lMNT_POINT}/firmadyne/libnvram_${lDBG_MODE}.so" ]]; then
     print_output "[*] Linking to ${lDBG_MODE} libnvram.so"
-    ln -sr "${lMNT_POINT}/firmadyne/libnvram_${lDBG_MODE}.so" "${lMNT_POINT}/firmadyne/libnvram.so" || true
+    ln -sr -- "${lMNT_POINT}/firmadyne/libnvram_${lDBG_MODE}.so" "${lMNT_POINT}/firmadyne/libnvram.so" || true
   fi
   if [[ -f "${lMNT_POINT}/firmadyne/libnvram_ioctl_${lDBG_MODE}.so" ]]; then
     print_output "[*] Linking to ${lDBG_MODE} libnvram_ioctl.so"
-    ln -sr "${lMNT_POINT}/firmadyne/libnvram_ioctl_${lDBG_MODE}.so" "${lMNT_POINT}/firmadyne/libnvram_ioctl.so" || true
+    ln -sr -- "${lMNT_POINT}/firmadyne/libnvram_ioctl_${lDBG_MODE}.so" "${lMNT_POINT}/firmadyne/libnvram_ioctl.so" || true
   fi
 }
 
@@ -590,7 +589,7 @@ main_emulation() {
 
     if [[ -n "${lBAK_INIT_ORIG}" ]]; then
       print_output "[*] Restoring old init file: ${lBAK_INIT_ORIG}"
-      cp -pr "${lBAK_INIT_BACKUP}" "${lBAK_INIT_ORIG}" || print_error "[-] Error restoring old init file ${lBAK_INIT_ORIG}"
+      cp -pr -- "${lBAK_INIT_BACKUP}" "${lBAK_INIT_ORIG}" || print_error "[-] Error restoring old init file ${lBAK_INIT_ORIG}"
       lBAK_INIT_BACKUP=""
       lBAK_INIT_ORIG=""
     fi
@@ -611,7 +610,7 @@ main_emulation() {
 
       # write the init ELF file or sym link to the EMBA preInit script:
       # INIT_OUT="${MNT_POINT}""/firmadyne/preInit.sh"
-      cp -pr "${lINIT_OUT}" "${lBAK_INIT_BACKUP}" || true
+      cp -pr -- "${lINIT_OUT}" "${lBAK_INIT_BACKUP}" || true
 
       print_output "[*] Add ${lINIT_FILE} entry to ${ORANGE}${lINIT_OUT}${NC}"
       # we always add the identified init entry to the EMBA preInit script
@@ -635,7 +634,7 @@ main_emulation() {
       print_output "[*] Backup original init file ${ORANGE}${lINIT_OUT}${NC}"
       lBAK_INIT_ORIG="${lINIT_OUT}"
       lBAK_INIT_BACKUP="${LOG_PATH_MODULE}"/"$(basename "${lINIT_OUT}".init)"
-      cp -pr "${lINIT_OUT}" "${lBAK_INIT_BACKUP}"
+      cp -pr -- "${lINIT_OUT}" "${lBAK_INIT_BACKUP}"
 
       # identify mount operations for later handling and disabling
       mapfile -t lFS_MOUNTS_INIT_ARR < <(grep -E "^mount\ -t\ .*\ .*mtd.* /.*" "${MNT_POINT}""${lINIT_FILE}" | sort -u || true)
@@ -875,11 +874,11 @@ main_emulation() {
       print_output "[*] Unsorted configuration"
       for lIPS_INT_VLAN_CFG in "${IPS_INT_VLAN[@]}"; do
         lNW_ENTRY_PRIO="${lIPS_INT_VLAN_CFG/\;*/}"
-        lIP_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f2)
-        lINTERFACE_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f3)
-        lNETWORK_INTERFACE_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f4)
-        lVLAN_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f5)
-        lCFG_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f6)
+        lIP_CFG="$(cut -d\; -f2 <<<"${lIPS_INT_VLAN_CFG}")"                # field 2
+        lINTERFACE_CFG="$(cut -d\; -f3 <<<"${lIPS_INT_VLAN_CFG}")"         # field 3
+        lNETWORK_INTERFACE_CFG="$(cut -d\; -f4 <<<"${lIPS_INT_VLAN_CFG}")" # field 4
+        lVLAN_CFG="$(cut -d\; -f5 <<<"${lIPS_INT_VLAN_CFG}")"              # field 5
+        lCFG_CFG="$(cut -d\; -f6 <<<"${lIPS_INT_VLAN_CFG}")"               # field 6
         if [[ "${lIPS_INT_VLAN_TMP[*]}" == *"${lIP_CFG};${lINTERFACE_CFG};${lNETWORK_INTERFACE_CFG};${lVLAN_CFG};${lCFG_CFG}"* ]]; then
           print_output "$(indent "Duplicate: ${lIP_CFG} - ${lINTERFACE_CFG} - ${lNETWORK_INTERFACE_CFG} - ${lVLAN_CFG} - ${lCFG_CFG} - ${lNW_ENTRY_PRIO}")"
         fi
@@ -894,11 +893,11 @@ main_emulation() {
       print_output "[*] Sorted and unique configuration"
       for lIPS_INT_VLAN_CFG in "${IPS_INT_VLAN[@]}"; do
         lNW_ENTRY_PRIO="${lIPS_INT_VLAN_CFG/\;*/}"
-        lIP_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f2)
-        lINTERFACE_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f3)
-        lNETWORK_INTERFACE_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f4)
-        lVLAN_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f5)
-        lCFG_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f6)
+        lIP_CFG="$(cut -d\; -f2 <<<"${lIPS_INT_VLAN_CFG}")"                # field 2
+        lINTERFACE_CFG="$(cut -d\; -f3 <<<"${lIPS_INT_VLAN_CFG}")"         # field 3
+        lNETWORK_INTERFACE_CFG="$(cut -d\; -f4 <<<"${lIPS_INT_VLAN_CFG}")" # field 4
+        lVLAN_CFG="$(cut -d\; -f5 <<<"${lIPS_INT_VLAN_CFG}")"              # field 5
+        lCFG_CFG="$(cut -d\; -f6 <<<"${lIPS_INT_VLAN_CFG}")"               # field 6
         if [[ "${lIPS_INT_VLAN_TMP[*]}" == *"${lIP_CFG};${lINTERFACE_CFG};${lNETWORK_INTERFACE_CFG};${lVLAN_CFG};${lCFG_CFG}"* ]]; then
           print_output "$(indent "Duplicate: ${lIP_CFG} - ${lINTERFACE_CFG} - ${lNETWORK_INTERFACE_CFG} - ${lVLAN_CFG} - ${lCFG_CFG} - ${lNW_ENTRY_PRIO}")"
         fi
@@ -908,11 +907,11 @@ main_emulation() {
       print_output "[*] Final configuration"
       for lIPS_INT_VLAN_CFG in "${IPS_INT_VLAN[@]}"; do
         lNW_ENTRY_PRIO="${lIPS_INT_VLAN_CFG/\;*/}"
-        lIP_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f2)
-        lINTERFACE_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f3)
-        lNETWORK_INTERFACE_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f4)
-        lVLAN_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f5)
-        lCFG_CFG=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f6)
+        lIP_CFG="$(cut -d\; -f2 <<<"${lIPS_INT_VLAN_CFG}")"                # field 2
+        lINTERFACE_CFG="$(cut -d\; -f3 <<<"${lIPS_INT_VLAN_CFG}")"         # field 3
+        lNETWORK_INTERFACE_CFG="$(cut -d\; -f4 <<<"${lIPS_INT_VLAN_CFG}")" # field 4
+        lVLAN_CFG="$(cut -d\; -f5 <<<"${lIPS_INT_VLAN_CFG}")"              # field 5
+        lCFG_CFG="$(cut -d\; -f6 <<<"${lIPS_INT_VLAN_CFG}")"               # field 6
         if [[ "${lIPS_INT_VLAN_TMP[*]}" == *"${lIP_CFG};${lINTERFACE_CFG};${lNETWORK_INTERFACE_CFG};${lVLAN_CFG};${lCFG_CFG}"* ]]; then
           continue
         fi
@@ -1012,11 +1011,11 @@ emulation_with_config() {
   local lENTRY_PRIO=""
   local lVLAN_ID=""
   lENTRY_PRIO="${lIPS_INT_VLAN_CFG/\;*/}"
-  IP_ADDRESS_=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f2)
-  lNETWORK_DEVICE=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f3)
-  lETH_INT=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f4)
-  lVLAN_ID=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f5)
-  lNETWORK_MODE=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f6)
+  IP_ADDRESS_="$(cut -d\; -f2 <<<"${lIPS_INT_VLAN_CFG}")"     # field 2
+  lNETWORK_DEVICE="$(cut -d\; -f3 <<<"${lIPS_INT_VLAN_CFG}")" # field 3
+  lETH_INT="$(cut -d\; -f4 <<<"${lIPS_INT_VLAN_CFG}")"        # field 4
+  lVLAN_ID="$(cut -d\; -f5 <<<"${lIPS_INT_VLAN_CFG}")"        # field 5
+  lNETWORK_MODE="$(cut -d\; -f6 <<<"${lIPS_INT_VLAN_CFG}")"   # field 6
   export NMAP_LOG="nmap_emba_${lIPS_INT_VLAN_CFG//\;/-}.txt"
 
   setup_network_emulation "${lIPS_INT_VLAN_CFG}"
@@ -1059,13 +1058,13 @@ emulation_with_config() {
     fi
 
     # remove tmp files for next round
-    rm "${TMP_DIR}"/online_stats.tmp || true
+    rm -- "${TMP_DIR}"/online_stats.tmp || true
   fi
 
   # if our ip address has changed during analysis we restore this ip address now
   if [[ -f "${TMP_DIR}/emulation_changed_ip_address.tmp" ]]; then
     IP_ADDRESS_="$(cat "${TMP_DIR}/emulation_changed_ip_address.tmp")"
-    rm "${TMP_DIR}/emulation_changed_ip_address.tmp" || true
+    rm -- "${TMP_DIR}/emulation_changed_ip_address.tmp" || true
   fi
 
   write_results "${ARCHIVE_PATH}" "${R_PATH}" "${RESULT_SOURCE:-EMBA}" "${lNETWORK_MODE}" "${lETH_INT}" "${lVLAN_ID}" "${lINIT_FILE}" "${lNETWORK_DEVICE}"
@@ -1109,7 +1108,7 @@ emulation_with_config() {
       fi
       # print_output "[-] Emulation archive: $ARCHIVE_PATH."
       # create_emulation_archive "$ARCHIVE_PATH"
-      rm -r "${ARCHIVE_PATH}" || true
+      rm -r -- "${ARCHIVE_PATH}" || true
     fi
   fi
 
@@ -1217,14 +1216,14 @@ handle_fs_mounts() {
       return
     fi
 
-    lMOUNT_PT=$(echo "${lFS_MOUNT}" | awk '{print $5}')
+    lMOUNT_PT=$(awk '{print $5}' <<<"${lFS_MOUNT}") # field 5
     lMOUNT_FS=$(echo "${lFS_MOUNT}" | grep " \-t " | sed 's/.*-t //g' | awk '{print $1}')
     if [[ "${lMOUNT_FS}" != *"jffs"* ]] && [[ "${lMOUNT_FS}" != *"cramfs"* ]]; then
       print_output "[-] Warning: ${ORANGE}${lMOUNT_FS}${NC} filesystem currently not supported"
       print_output "[-] Warning: If further results are wrong please open a ticket"
     fi
     if [[ "${lMOUNT_PT}" != *"/"* ]]; then
-      lMOUNT_PT=$(echo "${lFS_MOUNT}" | awk '{print $NF}')
+      lMOUNT_PT=$(awk '{print $NF}' <<<"${lFS_MOUNT}") # field NF
       if [[ "${lMOUNT_PT}" != *"/"* ]]; then
         print_output "[-] Warning: Mount point ${ORANGE}${lMOUNT_PT}${NC} currently not supported"
         print_output "[-] Warning: If further results are wrong please open a ticket"
@@ -1284,7 +1283,7 @@ handle_fs_mounts() {
 
       if ! [[ -d "${MNT_POINT}""${lMOUNT_PT}" ]]; then
         print_output "[*] Creating target directory ${MNT_POINT}${lMOUNT_PT}"
-        mkdir -p "${MNT_POINT}""${lMOUNT_PT}"
+        mkdir -p -- "${MNT_POINT}""${lMOUNT_PT}"
       fi
       print_output "[*] Let's copy the identified area to the root filesystem - ${ORANGE}${lN_PATH}${NC} to ${ORANGE}${MNT_POINT}${lMOUNT_PT}${NC}"
       cp -pr --update=none "${lN_PATH}"* "${MNT_POINT}""${lMOUNT_PT}"
@@ -1303,16 +1302,16 @@ handle_fs_mounts() {
   cp "${MODULE_SUB_PATH}/inferService.sh" "${MNT_POINT}" || true
   print_output "[*] inferService.sh (chroot)"
   EMBA_BOOT=${EMBA_BOOT} EMBA_ETC=${EMBA_ETC} timeout --preserve-status --signal SIGINT 120 chroot "${MNT_POINT}" /bash-static /inferService.sh | tee -a "${LOG_FILE}"
-  rm "${MNT_POINT}"/inferService.sh || true
-  rm "${MNT_POINT}"/bash-static || true
-  rm "${MNT_POINT}"/busybox || true
+  rm -- "${MNT_POINT}"/inferService.sh || true
+  rm -- "${MNT_POINT}"/bash-static || true
+  rm -- "${MNT_POINT}"/busybox || true
 
   if [[ -f "${MNT_POINT}"/firmadyne/service ]]; then
     # tp-link camset fix (e.g. NC200_2.1.8_Build_171109_Rel.28679.bin):
     if grep -q "lighttpd" "${MNT_POINT}"/firmadyne/service; then
       if ! [[ -d "${MNT_POINT}"/var/run/lighttpd ]]; then
         print_output "[*] Creating pid directory for lighttpd service"
-        mkdir -p "${MNT_POINT}"/var/run/lighttpd || true
+        mkdir -p -- "${MNT_POINT}"/var/run/lighttpd || true
       fi
     fi
   fi
@@ -1327,10 +1326,10 @@ cleanup_emulator() {
   fi
 
   # ugly cleanup:
-  rm -rf /tmp/qemu."${lIMAGE_NAME}" 2>/dev/null || true
-  rm -rf /tmp/qemu."${lIMAGE_NAME}".S1 2>/dev/null || true
+  rm -rf /tmp/qemu."${lIMAGE_NAME:?lIMAGE_NAME is unset or empty}" 2>/dev/null || true
+  rm -rf /tmp/qemu."${lIMAGE_NAME:?lIMAGE_NAME is unset or empty}".S1 2>/dev/null || true
   if [[ -f /tmp/do_not_create_run.sh ]]; then
-    rm /tmp/do_not_create_run.sh || true
+    rm -- /tmp/do_not_create_run.sh || true
   fi
 
   # losetup
@@ -1351,7 +1350,7 @@ delete_device_entry() {
     losetup -d "$(losetup | grep "$(basename "${lIMAGE_NAME}")" | awk '{print $1}' || true)"
   fi
   dmsetup remove "$(basename "${lDEVICE}")" &>/dev/null || true
-  rm -rf "${lMNT_POINT:?}/"* || true
+  rm -rf -- "${lMNT_POINT:?}/"* || true
   sleep 1
 }
 
@@ -1748,8 +1747,8 @@ get_networking_details_emulation() {
         if [[ "${lNVRAM_BACKUP_IP}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           IP_ADDRESS_="${lNVRAM_BACKUP_IP}"
           print_output "[*] Originally identified IP 0.0.0.0 -> using backup IP ${IP_ADDRESS_}"
-        elif [[ -s "${L10_SYS_EMU_RESULTS}" ]]; then
-          IP_ADDRESS_=$(cut -d\; -f8 "${L10_SYS_EMU_RESULTS}" | sort -u | tail -n1)
+        elif [[ -s "${L10_CSV_LOG}" ]]; then
+          IP_ADDRESS_=$(cut -d\; -f9 "${L10_CSV_LOG}" | sort -u | tail -n1)
           IP_ADDRESS_="${IP_ADDRESS_/*\ /}"
           print_output "[*] Originally identified IP 0.0.0.0 -> using backup IP ${IP_ADDRESS_}"
         else
@@ -1759,7 +1758,7 @@ get_networking_details_emulation() {
       fi
 
       # filter for non usable IP addresses:
-      if [[ "${IP_ADDRESS_}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && ! [[ "${IP_ADDRESS_}" == "127.0.0."* ]]; then
+      if check_for_valid_ip_address "${IP_ADDRESS_}" && ! [[ "${IP_ADDRESS_}" == "127.0.0."* ]]; then
         print_output "[*] Identified IP address: ${ORANGE}${IP_ADDRESS_}${NC} / ${ORANGE}${lINTERFACE_CAND}${NC}"
         DETECTED_IP=1
         # get the network device from our interface candidate
@@ -2099,11 +2098,11 @@ setup_network_emulation() {
   sub_module_title "Setup networking - ${lIPS_INT_VLAN_CFG//\;/-}"
 
   # Source: IPS_INT_VLAN+=( "PRIO"-"${IP_ADDRESS_}"-"${lNETWORK_DEVICE}"-"${lETH_INT}"-"${lVLAN_ID}"-"${lNETWORK_MODE}" )
-  lIP_ADDRESS=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f2)
-  lNETWORK_DEVICE=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f3)
-  lETH_INT=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f4)
-  lVLAN_ID=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f5)
-  lNETWORK_MODE=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f6)
+  lIP_ADDRESS="$(cut -d\; -f2 <<<"${lIPS_INT_VLAN_CFG}")"     # field 2
+  lNETWORK_DEVICE="$(cut -d\; -f3 <<<"${lIPS_INT_VLAN_CFG}")" # field 3
+  lETH_INT="$(cut -d\; -f4 <<<"${lIPS_INT_VLAN_CFG}")"        # field 4
+  lVLAN_ID="$(cut -d\; -f5 <<<"${lIPS_INT_VLAN_CFG}")"        # field 5
+  lNETWORK_MODE="$(cut -d\; -f6 <<<"${lIPS_INT_VLAN_CFG}")"   # field 6
 
   # a br interface with a number ... eg br0, br1 ... but no br-lan interface
   if [[ "${lNETWORK_DEVICE}" == *"br"* ]] && [[ "${lNETWORK_DEVICE}" == *[0-9]* ]]; then
@@ -2119,7 +2118,7 @@ setup_network_emulation() {
   export ARCHIVE_PATH="${LOG_PATH_MODULE}"/archive-"${IMAGE_NAME}"-"${RANDOM}"
 
   if ! [[ -d "${ARCHIVE_PATH}" ]]; then
-    mkdir "${ARCHIVE_PATH}"
+    mkdir -- "${ARCHIVE_PATH}"
   fi
 
   lTAP_ID=$(shuf -i 1-1000 -n 1)
@@ -2133,8 +2132,7 @@ setup_network_emulation() {
   export HOSTNETDEV_0="${TAPDEV_0}"
   print_output "[*] Creating TAP device ${ORANGE}${TAPDEV_0}${NC} ..."
   write_script_exec "echo -e \"Creating TAP device ${TAPDEV_0}\n\"" "${ARCHIVE_PATH}"/run.sh 0
-  write_script_exec "command -v tunctl > /dev/null || (echo \"Missing tunctl ... check your installation - install uml-utilities package\" && exit 1)" "${ARCHIVE_PATH}"/run.sh 0
-  write_script_exec "tunctl -t ${TAPDEV_0}" "${ARCHIVE_PATH}"/run.sh 1
+  write_script_exec "ip tuntap add dev ${TAPDEV_0} mode tap" "${ARCHIVE_PATH}"/run.sh 1
 
   if [[ "${lVLAN_ID}" != "NONE" ]]; then
     HOSTNETDEV_0="${TAPDEV_0}"."${lVLAN_ID}"
@@ -2226,7 +2224,7 @@ write_network_config_to_filesystem() {
         lDIR_NAME_MISSING=$(dirname "${lFILE_PATH_MISSING}")
         if ! [[ -d "${MNT_POINT}/${lDIR_NAME_MISSING#/}" ]]; then
           print_output "[*] Create missing directory ${ORANGE}/${lDIR_NAME_MISSING#/}${NC} in filesystem ... trying to fix this now"
-          mkdir -p "${MNT_POINT}/${lDIR_NAME_MISSING#/}" 2>/dev/null || true
+          mkdir -p -- "${MNT_POINT}/${lDIR_NAME_MISSING#/}" 2>/dev/null || true
         fi
         lFOUND_MISSING=$(find "${MNT_POINT}" -type f -name "${lFILENAME_MISSING}" | head -1 || true)
         if [[ -f ${lFOUND_MISSING} ]] && ! [[ -f "${MNT_POINT}/${lDIR_NAME_MISSING#/}/${lFILENAME_MISSING}" ]]; then
@@ -2243,7 +2241,7 @@ write_network_config_to_filesystem() {
     # before the next emulation testrun
     # This file is an indiator that the initial network config was done and we can start checking
     # the network config during emulation
-    rm "${MNT_POINT}"/tmp/EMBA_config_state 2>/dev/null || true
+    rm -- "${MNT_POINT}"/tmp/EMBA_config_state 2>/dev/null || true
 
     # umount filesystem:
     umount_qemu_image "${lDEVICE}"
@@ -2287,7 +2285,7 @@ nvram_check() {
       mapfile -t lNVRAM_FILE_LIST < <(find . -xdev -type f -not -path "*/firmadyne*" -exec file {} \; | grep "ASCII text" || true)
 
       if ! [[ -d "${LOG_PATH_MODULE}"/nvram ]]; then
-        mkdir "${LOG_PATH_MODULE}"/nvram
+        mkdir -- "${LOG_PATH_MODULE}"/nvram
       fi
 
       # need to check for firmadyne string in path
@@ -2635,7 +2633,7 @@ check_online_stat() {
   local lIMAGE_NAME="${3:-}"
 
   local lIP_ADDRESS=""
-  lIP_ADDRESS=$(echo "${lIPS_INT_VLAN_CFG}" | cut -d\; -f2)
+  lIP_ADDRESS="$(cut -d\; -f2 <<<"${lIPS_INT_VLAN_CFG}")" # field 2
 
   local lNMAP_LOG="nmap_emba_${lIPS_INT_VLAN_CFG//\;/-}.txt"
 
@@ -2963,7 +2961,7 @@ create_emulation_archive() {
     done
 
     mount "${lDEVICE}" "${MNT_POINT}" || true
-    rm "${MNT_POINT}"/tmp/EMBA_config_state 2>/dev/null || true
+    rm -- "${MNT_POINT}"/tmp/EMBA_config_state 2>/dev/null || true
     umount_qemu_image "${lDEVICE}"
     delete_device_entry "$(basename "${lIMAGE}")" "${lDEVICE}" "${MNT_POINT}"
 
@@ -2976,7 +2974,7 @@ create_emulation_archive() {
   fi
 
   echo "${lIPS_INT_VLAN_CFG_mod}" >>"${lARCHIVE_PATH}"/emulation_config.txt || true
-  cat "${L10_SYS_EMU_RESULTS}" >>"${lARCHIVE_PATH}"/emulation_config.txt || true
+  cat "${L10_CSV_LOG}" >>"${lARCHIVE_PATH}"/emulation_config.txt || true
 
   if [[ -v ARCHIVE_PATH ]] && [[ -f "${lARCHIVE_PATH}"/run.sh ]]; then
     chmod +x "${lARCHIVE_PATH}"/run.sh
@@ -3071,16 +3069,16 @@ add_partition_emulation() {
     mapfile -t lLOSETUP_OUT_ARR < <(losetup | grep -v "BACK-FILE" || true)
     local lLINE=""
     for lLINE in "${lLOSETUP_OUT_ARR[@]}"; do
-      lIMAGE_PATH=$(echo "${lLINE}" | awk '{print $6}')
+      lIMAGE_PATH=$(awk '{print $6}' <<<"${lLINE}") # field 6
       if [[ "${lIMAGE_PATH}" == "${1}" ]]; then
-        lDEV_PATH=$(echo "${lLINE}" | awk '{print $1}')
+        lDEV_PATH=$(awk '{print $1}' <<<"${lLINE}") # field 1
         if [[ "$(dirname "${lDEV_PATH}")" == "/dev/loop" ]]; then
           # if we have the new naming like /dev/loop/0 -> dirname results in /dev/loop
-          lDEV_NR=$(echo "${lDEV_PATH}" | rev | cut -d '/' -f1 | rev)
+          lDEV_NR="${lDEV_PATH##*/}" # basename
           lDEV_PATH="/dev/loop${lDEV_NR}p1"
         else
           # old naming like /dev/loop0 -> dirname results in /dev/
-          lDEV_PATH=$(echo "${lLINE}" | awk '{print $1}')p1
+          lDEV_PATH=$(awk '{print $1}' <<<"${lLINE}")p1 # field 1
         fi
         if [[ -b "${lDEV_PATH}" ]]; then
           lFOUND=true
@@ -3175,11 +3173,11 @@ write_results() {
   lSERVICES="$(grep -h "\/udp.*open\ \|\/tcp.*open\ " "${ARCHIVE_PATH}"/*"${NMAP_LOG}" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ',' || true)"
 
   [[ "${lTCP_SERV_CNT}" -gt 0 ]] && TCP="ok"
-  lARCHIVE_PATH="$(echo "${lARCHIVE_PATH}" | rev | cut -d '/' -f1 | rev)"
-  if ! [[ -f "${L10_SYS_EMU_RESULTS}" ]]; then
-    write_log "FIRMWARE_PATH;RESULT_SOURCE;Booted state;ICMP state;TCP-0 state;TCP state;online services cnt;available network services;IP address;Network mode (NETWORK_DEVICE|ETH_INT|VLAN_ID|INIT_FILE|INIT_MECHANISM);ARCHIVE_PATH_;R_PATH" "${L10_SYS_EMU_RESULTS}"
+  lARCHIVE_PATH="${lARCHIVE_PATH##*/}" # basename
+  if ! [[ -f "${L10_CSV_LOG}" ]]; then
+    write_csv_log "FIRMWARE_PATH" "RESULT_SOURCE" "Booted state" "ICMP state" "TCP-0 state" "TCP state" "online services cnt" "available network services" "IP address" "Network mode (NETWORK_DEVICE|ETH_INT|VLAN_ID|INIT_FILE|INIT_MECHANISM)" "ARCHIVE_PATH_" "R_PATH"
   fi
-  write_log "${lFIRMWARE_PATH_orig:-NA};${lRESULT_SOURCE};Booted ${BOOTED};ICMP ${ICMP};TCP-0 ${TCP_0};TCP ${TCP};${lTCP_SERV_CNT};${lSERVICES%,};IP address: ${IP_ADDRESS_};Network mode: ${lNETWORK_MODE} (${lNETWORK_DEVICE}|${lETH_INT}|${lVLAN_ID}|${lINIT_FILE}|${KINIT/=*/});${lARCHIVE_PATH};${lR_PATH_mod}" "${L10_SYS_EMU_RESULTS}"
+  write_csv_log "${lFIRMWARE_PATH_orig:-NA}" "${lRESULT_SOURCE}" "Booted ${BOOTED}" "ICMP ${ICMP}" "TCP-0 ${TCP_0}" "TCP ${TCP}" "${lTCP_SERV_CNT}" "${lSERVICES%,}" "IP address: ${IP_ADDRESS_}" "Network mode: ${lNETWORK_MODE} (${lNETWORK_DEVICE}|${lETH_INT}|${lVLAN_ID}|${lINIT_FILE}|${KINIT/=*/})" "${lARCHIVE_PATH}" "${lR_PATH_mod}"
   print_bar ""
 }
 

@@ -13,6 +13,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner, Pascal Eckmann
+# Contributor(s): Mihai Macarie
 
 # Description:  All functions for colorizing terminal output and handling logging
 
@@ -56,7 +57,8 @@ module_log_init() {
   local lFILE_NAME=""
   # local lMODULE_NUMBER=""
   # lMODULE_NUMBER="$(echo "${LOG_FILE_NAME}" | cut -d "_" -f1 | cut -c2- )"
-  lFILE_NAME=$(echo "${LOG_FILE_NAME}" | sed -e 's/\(.*\)/\L\1/' | tr " " _)
+  lFILE_NAME="${LOG_FILE_NAME,,}"
+  lFILE_NAME="${lFILE_NAME// /_}"
   LOG_FILE="${LOG_DIR}""/""${lFILE_NAME}"".txt"
   LOG_FILE_NAME="${lFILE_NAME}"".txt"
 
@@ -120,7 +122,7 @@ print_error() {
   # local lLOG_SETTING="${2:-}"
 
   local lTYPE_CHECK=""
-  lTYPE_CHECK="$(echo "${lOUTPUT}" | cut -c1-3)"
+  lTYPE_CHECK="${lOUTPUT:0:3}" # chars 1-3
 
   if [[ ! -f "${ERROR_LOG}" ]]; then
     touch "${ERROR_LOG}"
@@ -149,9 +151,9 @@ print_debug() {
 # print_output "asdf" "" "link" -> logs to LOG_FILE and includes a link (REF)
 # print_output "asdf" "other_log_file" "" 0 -> does not log to default LOG_FILE. Logs to screen and to other_log_file
 print_output() {
-  local lOUTPUT="${1:-\n}"
+  local lOUTPUT="${1:-}"
   local lLOG_SETTING="${2:-}"
-  if [[ -n "${lLOG_SETTING}" && -d "$(dirname "${lLOG_SETTING}")" && "${LOG_FILE:-}" != "${lLOG_FILE_MOD:-}" ]]; then
+  if [[ -n "${lLOG_SETTING}" && -d "$(dirname "${lLOG_SETTING}")" && "${LOG_FILE:-}" != "${lLOG_SETTINGS:-}" ]]; then
     local lLOG_FILE_MOD="${2:-}"
   fi
   # add a link as third argument to add a link marker for web report
@@ -159,14 +161,23 @@ print_output() {
   # log into default log LOG_FILE
   local lDEF_LOG="${4:-1}"
   local lTYPE_CHECK=""
-  lTYPE_CHECK="$(echo "${lOUTPUT}" | cut -c1-3)"
+  lTYPE_CHECK="${lOUTPUT:0:3}" # chars 1-3
 
   if [[ "${lTYPE_CHECK}" == "[-]" || "${lTYPE_CHECK}" == "[*]" || "${lTYPE_CHECK}" == "[!]" || "${lTYPE_CHECK}" == "[+]" ]]; then
     local lCOLOR_OUTPUT_STRING=""
     lCOLOR_OUTPUT_STRING="$(color_output "${lOUTPUT}")"
+    # ensure our color_output does not break our REF linking
+    lCOLOR_OUTPUT_STRING="${lCOLOR_OUTPUT_STRING//$'\r'/}"
+    if [[ "${lCOLOR_OUTPUT_STRING}" == *$'\n'"${NC}" ]]; then
+      lCOLOR_OUTPUT_STRING="${lCOLOR_OUTPUT_STRING%$'\n'"${NC}"}${NC}"
+    fi
     safe_echo "${lCOLOR_OUTPUT_STRING}"
     if [[ "${lLOG_SETTING}" == "main" ]]; then
-      safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")" "${MAIN_LOG}"
+      if [[ -z "${lREF_LINK:-}" ]]; then
+        safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")" "${MAIN_LOG}"
+      else
+        safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")\\r\\n$(format_log "[REF] ${lREF_LINK}" 1)" "${MAIN_LOG}"
+      fi
     elif [[ "${lLOG_SETTING}" != "no_log" ]]; then
       if [[ -z "${lREF_LINK:-}" ]]; then
         if [[ "${lDEF_LOG}" -eq 1 ]]; then
@@ -177,10 +188,10 @@ print_output() {
         fi
       else
         if [[ "${lDEF_LOG}" -eq 1 ]]; then
-          safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")""\\r\\n""$(format_log "[REF] ""${lREF_LINK}" 1)" "${LOG_FILE}"
+          safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")\\r\\n$(format_log "[REF] ${lREF_LINK}" 1)" "${LOG_FILE}"
         fi
         if [[ -n "${lLOG_FILE_MOD:-}" ]]; then
-          safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")""\\r\\n""$(format_log "[REF] ""${lREF_LINK}" 1)" "${lLOG_FILE_MOD}"
+          safe_echo "$(format_log "${lCOLOR_OUTPUT_STRING}")\\r\\n$(format_log "[REF] ${lREF_LINK}" 1)" "${lLOG_FILE_MOD}"
         fi
       fi
     fi
@@ -200,10 +211,10 @@ print_output() {
         fi
       else
         if [[ "${lDEF_LOG}" -eq 1 ]]; then
-          safe_echo "$(format_log "${lOUTPUT}")""\\r\\n""$(format_log "[REF] ""${lREF_LINK}" 1)" "${LOG_FILE}"
+          safe_echo "$(format_log "${lOUTPUT}")\\r\\n$(format_log "[REF] ${lREF_LINK}" 1)" "${LOG_FILE}"
         fi
         if [[ -n "${lLOG_FILE_MOD:-}" ]]; then
-          safe_echo "$(format_log "${lOUTPUT}")""\\r\\n""$(format_log "[REF] ""${lREF_LINK}" 1)" "${lLOG_FILE_MOD}"
+          safe_echo "$(format_log "${lOUTPUT}")\\r\\n$(format_log "[REF] ${lREF_LINK}" 1)" "${lLOG_FILE_MOD}"
         fi
       fi
     fi
@@ -313,7 +324,7 @@ write_log() {
 
   for lENTRY in "${lTEXT_ARR[@]}"; do
     local lTYPE_CHECK=""
-    lTYPE_CHECK="$(echo "${lENTRY}" | cut -c1-3)"
+    lTYPE_CHECK="${lENTRY:0:3}" # chars 1-3
     if [[ ("${lTYPE_CHECK}" == "[-]" || "${lTYPE_CHECK}" == "[*]" || "${lTYPE_CHECK}" == "[!]" || "${lTYPE_CHECK}" == "[+]") && ("${lENTRY}" != "[*] Statistic"*) ]]; then
       local lCOLOR_OUTPUT_STRING=""
       lCOLOR_OUTPUT_STRING="$(color_output "${lENTRY}")"
@@ -348,16 +359,17 @@ write_csv_log_to_path() {
   local lLOCK_FILE=""
   shift 2
   local lCSV_ITEMS=("$@")
+  local lCSV_LINE=""
 
-  if [[ -z "${lLOCK_FILE}" ]]; then
-    lLOCK_FILE="${lCSV_LOG}.lock"
+  # All P99 producers must clean their extracted tree before enumerating files.
+  # Reject a missed caller rather than corrupting the plain line-based CSV.
+  if [[ "${lCSV_LOG}" == "${P99_CSV_LOG:-}" && "${lCSV_ITEMS[0]:-}" == *[\;[:cntrl:]]* ]]; then
+    print_output "[-] Unclean firmware path passed to P99: ${lCSV_ITEMS[0]}" "no_log"
+    return 1
   fi
 
-  # Ensure lock file exists (so flock always has something to lock on)
-  : >> "${lLOCK_FILE}" 2>/dev/null || true
-
-  # shellcheck disable=SC2005
-  echo "$(printf '%s;%s;' "${lSOURCE_MODULE}" "${lCSV_ITEMS[@]}" && printf '\n')" >>"${lCSV_LOG}" || true
+  printf -v lCSV_LINE '%s;%s;' "${lSOURCE_MODULE}" "${lCSV_ITEMS[@]}"
+  printf '%s\n' "${lCSV_LINE}" >>"${lCSV_LOG}" || true
 }
 
 # For generating json log file in LOG_DIR/json_logs/<module_name>.json
@@ -413,7 +425,7 @@ write_json_module_log() {
   # as our json is not beautiful we remove all \n and further formatting should be done via jq
   tr -d '\n' <"${lJSON_LOG}" >"${lJSON_LOG/\.tmp/\.json}"
   find "${LOG_PATH_MODULE}" -maxdepth 1 -type f -name "JSON_tmp_*.json" -delete || true
-  rm "${lJSON_LOG}" || true
+  rm -- "${lJSON_LOG}" || true
 }
 
 # write_pid_log is a functions used for debugging
@@ -434,13 +446,13 @@ write_pid_log() {
   fi
 
   # shellcheck disable=SC2153
-  echo "${lLOG_MESSAGE}" >>"${TMP_DIR}"/"${PID_LOG_FILE}" || true
+  echo "${lLOG_MESSAGE}" >>"${TMP_DIR}/${PID_LOG_FILE}" || true
 }
 
 write_link() {
-  if [[ ${HTML} -eq 1 ]]; then
+  if [[ "${HTML}" -eq 1 ]]; then
     local lLINK="${1:-}"
-    lLINK="$(format_log "[REF] ""${lLINK}" 1)"
+    lLINK="$(format_log "[REF] ${lLINK}" 1)"
     local lLOG_FILE_ALT="${2:-}"
     if [[ "${lLOG_FILE_ALT}" != "no_log" ]] && [[ "${lLOG_FILE_ALT}" != "main" ]]; then
       if [[ -f "${lLOG_FILE_ALT}" ]]; then
@@ -448,6 +460,8 @@ write_link() {
       else
         echo -e "${lLINK}" | tee -a "${LOG_FILE}" >/dev/null
       fi
+    elif [[ "${lLOG_FILE_ALT}" != "no_log" ]] && [[ "${lLOG_FILE_ALT}" == "main" ]]; then
+      echo -e "${lLINK}" | tee -a "${MAIN_LOG}" >/dev/null
     fi
   fi
 }
@@ -463,7 +477,7 @@ copy_and_link_file() {
   local lLOG_FILE="${3:-}"
 
   if ! [[ -d "$(dirname "${lDST_FILE}")" ]]; then
-    mkdir -p "$(dirname "${lDST_FILE}")" || true
+    mkdir -p -- "$(dirname "${lDST_FILE}")" || true
   fi
   # we only copy if the lDST_FILE is not already there
   if ! [[ -f "${lDST_FILE}" ]]; then
@@ -479,7 +493,7 @@ copy_and_link_file() {
 }
 
 write_anchor() {
-  if [[ ${HTML} -eq 1 ]]; then
+  if [[ "${HTML}" -eq 1 ]]; then
     local lANCHOR="${1:-}"
     lANCHOR="$(format_log "[ANC] ""${lANCHOR}" 1)"
     local lLOG_FILE_ALT="${2:-}"
@@ -506,10 +520,10 @@ color_output() {
 
   for lENTRY in "${lTEXT_ARR[@]}"; do
     local lTYPE_CHECK=""
-    lTYPE_CHECK="$(echo "${lENTRY}" | cut -c1-3)"
+    lTYPE_CHECK="${lENTRY:0:3}" # chars 1-3
     if [[ "${lTYPE_CHECK}" == "[-]" || "${lTYPE_CHECK}" == "[*]" || "${lTYPE_CHECK}" == "[!]" || "${lTYPE_CHECK}" == "[+]" ]]; then
       local lSTR=""
-      lSTR="$(echo "${lENTRY}" | cut -c 4- || true)"
+      lSTR="${lENTRY:3}" # chars 4-
       if [[ "${lTYPE_CHECK}" == "[-]" ]]; then
         lTEXT="${lTEXT}""[""${RED}""-""${NC}""]""${lSTR}"
       elif [[ "${lTYPE_CHECK}" == "[*]" ]]; then
@@ -652,7 +666,7 @@ format_log() {
   local lLOG_STRING="${1:-}"
   # remove log formatting, even if EMBA is set to format it (for [REF] markers used)
   local lOVERWRITE_SETTING="${2:-}"
-  if [[ ${FORMAT_LOG} -eq 0 ]] || [[ ${lOVERWRITE_SETTING} -eq 1 ]]; then
+  if [[ "${FORMAT_LOG}" -eq 0 ]] || [[ "${lOVERWRITE_SETTING}" -eq 1 ]]; then
     echo "${lLOG_STRING}" | sed -r "s/\\\033\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" |
       sed -r "s/\\\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" |
       sed -r "s/\[([0-9]{1,2}(;[0-9]{1,2}(;[0-9]{1,2})?)?)?[m|K]//g" |
@@ -811,7 +825,7 @@ module_start_log() {
     mv "${LOG_PATH_MODULE}" "${OLD_LOG_DIR}" || true
   fi
   if ! [[ -d "${LOG_PATH_MODULE}" ]]; then
-    mkdir "${LOG_PATH_MODULE}" || true
+    mkdir -- "${LOG_PATH_MODULE}" || true
   fi
 }
 
@@ -842,6 +856,7 @@ module_end_log() {
   if [[ "${lMODULE_REPORT_STATE}" -eq 0 ]]; then
     print_output "[-] $(print_date) - ${lMODULE_MAIN_NAME} nothing reported"
   fi
+  print_output "[*] $(print_date) - ${lMODULE_MAIN_NAME} finishing report ... stay tuned" "no_log"
 
   # we do not report the templates on restarted tests
   if [[ "${lMODULE_REPORT_STATE}" -ne 0 ]]; then
@@ -868,7 +883,7 @@ module_end_log() {
   if [[ -v LOG_PATH_MODULE ]]; then
     if [[ -d "${LOG_PATH_MODULE}" ]]; then
       if [[ -z "$(find "${LOG_PATH_MODULE}" -type f -print -quit)" ]]; then
-        rm -r "${LOG_PATH_MODULE}"
+        rm -r -- "${LOG_PATH_MODULE}"
       fi
     fi
   fi
@@ -878,15 +893,19 @@ module_end_log() {
   lCSV_LOG="${LOG_FILE/\.txt/\.csv}"
   if [[ -f "${lCSV_LOG}" ]]; then
     if [[ $(wc -l "${lCSV_LOG}" | awk '{print $1}') -lt 2 ]]; then
-      rm "${lCSV_LOG}"
+      rm -- "${lCSV_LOG}"
     fi
   fi
 
   if [[ "${DISABLE_NOTIFICATIONS}" -eq 0 ]]; then
     write_notification "Module ${lMODULE_MAIN_NAME} finished"
   fi
-  local lFILE_NAME=$(echo "${lMODULE_MAIN_NAME}" | sed -e 's/\(.*\)/\L\1/' | tr " " _ )
-  print_output "[*] $(print_date) - ${lFILE_NAME^} finished" "main"
+  if [[ "${HTML}" -eq 1 ]]; then
+    # Todo: While we add the link marker here it is not further processed from the HTML report generator
+    print_output "[*] $(print_date) - ${lMODULE_MAIN_NAME} finished" "main" "${lMODULE_MAIN_NAME//_*/}"
+  else
+    print_output "[*] $(print_date) - ${lMODULE_MAIN_NAME} finished" "main"
+  fi
 }
 
 strip_color_codes() {
@@ -1011,7 +1030,7 @@ write_csv_AI_tmp() {
 }
 
 write_anchor_AI() {
-  if [[ ${HTML} -eq 1 ]]; then
+  if [[ "${HTML}" -eq 1 ]]; then
     local lLINK="${1:-}"
     lLINK="$(format_log "[ASK_AI] ""${lLINK}" 1)"
     local lLOG_FILE_ALT="${2:-}"

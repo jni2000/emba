@@ -42,17 +42,17 @@ if ("${EMBA_ETC}"); then
     SERVICE_NAME=$("${BUSYBOX}" basename "${SERVICE_NAME}")
 
     # normal service startups
-    if ( ! ("${BUSYBOX}" ps | "${BUSYBOX}" grep -v grep | "${BUSYBOX}" grep -sqiw "${SERVICE_NAME}")); then
+    if ( ! ("${BUSYBOX}" ps | "${BUSYBOX}" grep -v grep | "${BUSYBOX}" grep -sqiw "${SERVICE_NAME}") ); then
       "${BUSYBOX}" echo -e "\tSERVICE_NAME: ${SERVICE_NAME}"
       "${BUSYBOX}" echo -e "\tSERVICE: ${SERVICE}"
 
       "${BUSYBOX}" echo -e "${NC}[*] Starting initial service ${ORANGE}${SERVICE_NAME} - ${SERVICE}${NC} ..."
-      # shellcheck disable=SC3060
+      # shellcheck disable=SC3060,SC2039
       "${BUSYBOX}" ls -l "${SERVICE/\ */}"
       # BINARY variable could be something like: binary parameter parameter ...
       ${SERVICE} & # nosemgrep
       "${BUSYBOX}" sleep 5
-      if ( ! ("${BUSYBOX}" ps | "${BUSYBOX}" grep -v grep | "${BUSYBOX}" grep -sqiw "${SERVICE_NAME}")); then
+      if ( ! ("${BUSYBOX}" ps | "${BUSYBOX}" grep -v grep | "${BUSYBOX}" grep -sqiw "${SERVICE_NAME}") ); then
         # shellcheck disable=SC2086
         "${BUSYBOX}" sh ${SERVICE} & # nosemgrep
       fi

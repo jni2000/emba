@@ -22,6 +22,14 @@
 : "${DEBUG:=0}"
 export DEBUG
 
+local_ai_api_url() {
+  local lAPI_PATH="${1#/}"
+  local lAPI_ENDPOINT="/${LOCAL_AI_API_ENDPOINT#/}"
+  lAPI_ENDPOINT="${lAPI_ENDPOINT%/}"
+
+  printf '%s://%s:%s%s/%s' "${LOCAL_AI_SCHEME}" "${LOCAL_AI_IP}" "${LOCAL_AI_PORT}" "${lAPI_ENDPOINT}" "${lAPI_PATH}"
+}
+
 Q03_localai_connector() {
   module_log_init "${FUNCNAME[0]}"
   export AI_RESULT_CNT=0
@@ -66,21 +74,7 @@ Q03_localai_connector() {
     fi
 
     export SECONDS=0
-    if [[ "${AI_MIN_RUNTIME}" == *"d" ]]; then
-      AI_MIN_RUNTIME=${AI_MIN_RUNTIME//d/}
-      AI_MIN_RUNTIME=$((AI_MIN_RUNTIME * 24 * 3600))
-    fi
-    if [[ "${AI_MIN_RUNTIME}" == *"h" ]]; then
-      AI_MIN_RUNTIME=${AI_MIN_RUNTIME//h/}
-      AI_MIN_RUNTIME=$((AI_MIN_RUNTIME * 3600))
-    fi
-    if [[ "${AI_MIN_RUNTIME}" == *"m" ]]; then
-      AI_MIN_RUNTIME=${AI_MIN_RUNTIME//m/}
-      AI_MIN_RUNTIME=$((AI_MIN_RUNTIME * 60))
-    fi
-    if [[ "${AI_MIN_RUNTIME}" == *"s" ]]; then
-      AI_MIN_RUNTIME=${AI_MIN_RUNTIME//s/}
-    fi
+    AI_MIN_RUNTIME=$(convert_timeformat "${AI_MIN_RUNTIME}")
 
     export GTP_CHECKED_ARR=()
     local lMODULE_RUNTIME=${SECONDS}
@@ -135,10 +129,10 @@ ask_localai() {
 
   print_output "[*] Checking scripts with LocalAI that have a priority of ${ORANGE}${MINIMUM_GPT_PRIO}${NC} or higher" "no_log"
   if ! [[ -d "${lAI_FILE_DIR}" ]]; then
-    mkdir "${lAI_FILE_DIR}"
+    mkdir -- "${lAI_FILE_DIR}"
   fi
   if ! [[ -d "${AI_PROMPT_DIR}" ]]; then
-    mkdir "${AI_PROMPT_DIR}"
+    mkdir -- "${AI_PROMPT_DIR}"
   fi
 
   # generating Array for AI requests - sorting according the prio in field 3
@@ -147,7 +141,7 @@ ask_localai() {
 
   for ((lELE_INDEX = 0; lELE_INDEX < "${#Q03_LOCALAI_QUESTIONS[@]}"; lELE_INDEX++)); do
     local lELEM="${Q03_LOCALAI_QUESTIONS["${lELE_INDEX}"]}"
-    lSCRIPT_PATH_TMP="$(echo "${lELEM}" | cut -d\; -f1)"
+    lSCRIPT_PATH_TMP="${lELEM%%;*}" # field 1
 
     # as we always start with the highest rated entry, we need to check if this entry was already tested:
     if [[ " ${GTP_CHECKED_ARR[*]} " =~ ${lSCRIPT_PATH_TMP} ]]; then
@@ -156,9 +150,10 @@ ask_localai() {
       continue
     fi
 
-    lAI_ANCHOR="$(echo "${lELEM}" | cut -d\; -f2)"
-    lAI_PRIO="$(echo "${lELEM}" | cut -d\; -f3)"
-    lAI_SOURCE_FILE="$(echo "${lELEM}" | cut -d\; -f5)"
+    lAI_PRIO="$(cut -d ';' -f3 <<<"${lELEM}")"        # field 3
+    lAI_SOURCE_FILE="$(cut -d ';' -f5 <<<"${lELEM}")" # field 5
+    lAI_ANCHOR="${lELEM#*;}"
+    lAI_ANCHOR="${lAI_ANCHOR%%;*}" # field 2
     lAI_INPUT_FILE="$(basename "${lSCRIPT_PATH_TMP}")"
     lAI_INPUT_FILE_mod="${lAI_INPUT_FILE//\./}"
 
@@ -196,7 +191,7 @@ ask_localai() {
         lSCRIPT_PATH_TMP="${lSCRIPT_PATH_TMP:1}"
         # remove the LOG_DIR
         # shellcheck disable=SC2001
-        lSCRIPT_PATH_TMP="$(echo "${lSCRIPT_PATH_TMP}" | sed 's#'"${LOG_DIR}"'##')"
+        lSCRIPT_PATH_TMP="$(sed 's#'"${LOG_DIR}"'##' <<<"${lSCRIPT_PATH_TMP}")"
         print_output "[*] Stripped path ${lSCRIPT_PATH_TMP}" "no_log"
       fi
       # dirty fix - Todo: use array in future
@@ -302,7 +297,7 @@ ask_localai() {
           '{model: $model, messages: [{role: "user", content: $prompt}], temperature: 0.2}')
 
         lstart_time=$(date +%s)
-        lHTTP_CODE=$(curl --connect-timeout 10 --max-time 600 -s http://"${LOCAL_AI_IP}":8080/v1/chat/completions \
+        lHTTP_CODE=$(curl --connect-timeout 10 --max-time 600 -s "$(local_ai_api_url "chat/completions")" \
           -H "Content-Type: application/json" \
           -d "${lJSON_PAYLOAD}" -o "${lAI_LOG_FILE}.json" --write-out "%{http_code}" || true)
 
@@ -415,7 +410,8 @@ regenerate_ai_todo_list() {
   if [[ -f "${CSV_DIR}/ai_question.csv" ]]; then
     local lGPT_ENTRY_LINE=""
     while read -r lGPT_ENTRY_LINE; do
-      lAI_ANCHOR="$(echo "${lGPT_ENTRY_LINE}" | cut -d ';' -f2)"
+      lAI_ANCHOR="${lGPT_ENTRY_LINE#*;}"
+      lAI_ANCHOR="${lAI_ANCHOR%%;*}" # field 2
       sed -i "/${lAI_ANCHOR}/d" "${CSV_DIR}/ai_question.csv.tmp"
     done <"${CSV_DIR}/ai_question.csv"
   fi
@@ -428,7 +424,7 @@ identify_ai_model() {
   local lMODEL_LOCALAI=""
   local lCNT=1
   while [[ -z "${lMODEL_LOCALAI}" ]]; do
-    lMODEL_LOCALAI=$(curl --connect-timeout 10 --max-time 30 http://"${LOCAL_AI_IP}":8080/v1/models 2>/dev/null | jq -r .data[].id || true)
+    lMODEL_LOCALAI=$(curl --connect-timeout 10 --max-time 30 "$(local_ai_api_url "models")" 2>/dev/null | jq -r .data[].id || true)
     [[ -n "${lMODEL_LOCALAI}" ]] && break
     sleep 5
     lCNT=$((lCNT + 1))

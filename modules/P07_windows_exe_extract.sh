@@ -12,6 +12,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner
+# Contributor(s): Mihai Macarie
 
 # The documentation can be generated with the following command:
 # perl -ne "s/^\t+//; print if m/END_OF_DOCS'?\$/ .. m/^\s*'?END_OF_DOCS'?\$/ and not m/END_OF_DOCS'?$/;" modules/template_module.sh
@@ -153,7 +154,7 @@ exe_extractor() {
   lFIRMWARE_NAME="$(basename "${lFIRMWARE_PATH}")"
 
   if ! [[ -d "${lEXTRACTION_DIR}" ]]; then
-    mkdir "${lEXTRACTION_DIR}"
+    mkdir -- "${lEXTRACTION_DIR}"
   fi
 
   7z x -o"${lEXTRACTION_DIR}" "${lFIRMWARE_PATH}" 2>&1 | tee -a "${LOG_PATH_MODULE}"/exe_extraction_"${lFIRMWARE_NAME}".log || print_error "[-] Windows exe extraction via 7zip failed"
@@ -187,9 +188,11 @@ exe_extractor() {
   local lBINARY=""
   local lWAIT_PIDS_P99_ARR=()
 
+  remove_uprintable_paths "${lEXTRACTION_DIR}" || return 1
   mapfile -t lFILES_EXE_ARR < <(find "${lEXTRACTION_DIR}" -type f)
   if [[ -d "${lEXTRACTION_DIR%\/}_binwalk" ]]; then
     local lFILES_EXE_ARR_2=()
+    remove_uprintable_paths "${lEXTRACTION_DIR%\/}_binwalk" || return 1
     mapfile -t lFILES_EXE_ARR_2 < <(find "${lEXTRACTION_DIR%\/}_binwalk" -type f ! -name "*.raw")
     lFILES_EXE_ARR=("${lFILES_EXE_ARR[@]}" "${lFILES_EXE_ARR_2[@]}")
   fi

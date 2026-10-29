@@ -12,6 +12,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Author(s): Michael Messner
+# Contributor(s): Mihai Macarie
 
 # Description: Extracts vmdk images
 # Pre-checker threading mode - if set to 1, these modules will run in threaded mode
@@ -87,12 +88,12 @@ vmdk_extractor() {
     }
     if [[ -f "${lTMP_VMDK_MNT}" ]]; then
       print_output "[*] Extracting ${ORANGE}${lMOUNT_DEV}${NC} to firmware directory ${ORANGE}${lEXTRACTION_DIR_}/${lDEV_NAME}${NC}"
-      mkdir -p "${lEXTRACTION_DIR_}/${lDEV_NAME}" || true
+      mkdir -p -- "${lEXTRACTION_DIR_}/${lDEV_NAME}" || true
       tar -xvf "${lTMP_VMDK_MNT}" -C "${lEXTRACTION_DIR_}/${lDEV_NAME}" || {
         print_error "[-] Extracting VMDK ${lTMP_VMDK_MNT} to ${lEXTRACTION_DIR_}/${lDEV_NAME} failed ..."
         continue
       }
-      rm "${lTMP_VMDK_MNT}" || true
+      rm -- "${lTMP_VMDK_MNT}" || true
     fi
   done
 
@@ -100,6 +101,7 @@ vmdk_extractor() {
     local lVMDK_FILES_ARR=()
     local lBINARY=""
     local lWAIT_PIDS_P99_ARR=()
+    remove_uprintable_paths "${lEXTRACTION_DIR_}" || return 1
     mapfile -t lVMDK_FILES_ARR < <(find "${lEXTRACTION_DIR_}" -type f)
 
     print_output "[*] Extracted ${ORANGE}${#lVMDK_FILES_ARR[@]}${NC} files from the firmware image."

@@ -23,7 +23,7 @@ F50_base_aggregator() {
   pre_module_reporter "${FUNCNAME[0]}"
 
   if [[ "${RESTART}" -eq 1 ]] && [[ -f "${LOG_FILE}" ]]; then
-    rm "${LOG_FILE}"
+    rm -- "${LOG_FILE}"
   fi
 
   get_data
@@ -167,9 +167,9 @@ output_details() {
   fi
   lENTROPY_PIC_PATH=$(find "${LOG_DIR}" -xdev -maxdepth 1 -type f -iname "*_entropy.png" 2>/dev/null)
   if [[ -n "${ENTROPY}" ]]; then
-    print_output "[+] Entropy analysis of binary firmware is: ${ORANGE}${ENTROPY}"
+    print_output "[+] Entropy analysis of binary firmware is: ${ORANGE}${ENTROPY}${NC}"
     write_link "p02"
-    if [[ -n "${lENTROPY_PIC_PATH}" ]]; then
+    if [[ -f "${lENTROPY_PIC_PATH}" ]]; then
       write_link "${lENTROPY_PIC_PATH}"
     fi
     write_csv_log "entropy_value" "${ENTROPY}" "NA" "NA" "NA" "NA" "NA" "NA" "NA"
@@ -515,6 +515,7 @@ output_binaries() {
       write_link "s14"
     fi
     write_csv_log "strcpy" "${STRCPY_CNT}" "NA" "NA" "NA" "NA" "NA" "NA" "NA"
+    print_ln
   fi
 
   local lDATA_GENERATED=0
@@ -548,7 +549,7 @@ output_binaries() {
       sort -u -t ' ' -k3 | sort -g -r | head -10 2>/dev/null || true)
 
     # strcpy:
-    if [[ "${#lRESULTS_STRCPY_ARR[@]}" -gt 0 ]] && [[ $(echo "${lRESULTS_STRCPY_ARR[0]}" | awk '{print $1}') -gt 0 ]]; then
+    if [[ "${#lRESULTS_STRCPY_ARR[@]}" -gt 0 ]] && [[ ${lRESULTS_STRCPY_ARR[0]%% *} -gt 0 ]]; then
       print_ln
       print_output "[+] STRCPY - top 10 results:"
       if [[ -d "${LOG_DIR}""/s13_weak_func_check/" ]]; then
@@ -566,7 +567,7 @@ output_binaries() {
     fi
 
     # system:
-    if [[ "${#lRESULTS_SYSTEM_ARR[@]}" -gt 0 ]] && [[ $(echo "${lRESULTS_SYSTEM_ARR[0]}" | awk '{print $1}') -gt 0 ]]; then
+    if [[ "${#lRESULTS_SYSTEM_ARR[@]}" -gt 0 ]] && [[ ${lRESULTS_SYSTEM_ARR[0]%% *} -gt 0 ]]; then
       print_ln
       print_output "[+] SYSTEM - top 10 results:"
       if [[ -d "${LOG_DIR}""/s13_weak_func_check/" ]]; then
@@ -591,11 +592,11 @@ output_binaries() {
 binary_fct_output() {
   local lBINARY_DETAILS="${1:-}"
   export F_COUNTER=""
-  F_COUNTER="$(echo "${lBINARY_DETAILS}" | cut -d\  -f1)"
+  F_COUNTER="${lBINARY_DETAILS%% *}" # field 1
   export BINARY=""
-  BINARY="$(echo "${lBINARY_DETAILS}" | cut -d\  -f3)"
+  BINARY="$(cut -d ' ' -f3 <<<"${lBINARY_DETAILS}")" # field 3
   local lBINS_FCT=""
-  lBINS_FCT="$(echo "${lBINARY_DETAILS}" | cut -d\  -f2)"
+  lBINS_FCT="$(cut -d ' ' -f2 <<<"${lBINARY_DETAILS}")" # field 2
   local lBIN_RELRO_STRING=""
   local lBIN_CANARY_STRING=""
   local lBIN_NX_STRING=""
@@ -691,8 +692,10 @@ output_cve_exploits() {
 
       # run over F17/vuln_summary.txt and add links - need to do this here and not in f17 as there the threading mode kicks us
       while read -r OVERVIEW_LINE; do
-        lBINARY="$(echo "${OVERVIEW_LINE}" | cut -d: -f2 | tr -d '[:blank:]')"
-        lBIN_VERS="$(echo "${OVERVIEW_LINE}" | cut -d: -f3 | tr -d '[:blank:]')"
+        lBINARY="$(cut -d: -f2 <<<"${OVERVIEW_LINE}")" # field 2
+        lBINARY="${lBINARY//[[:blank:]]/}"
+        lBIN_VERS="$(cut -d: -f3 <<<"${OVERVIEW_LINE}")" # field 3
+        lBIN_VERS="${lBIN_VERS//[[:blank:]]/}"
         print_output "${OVERVIEW_LINE}"
         write_link "f17#cve_${lBINARY}_${lBIN_VERS}"
       done <"${F17_LOG_DIR}/vuln_summary.txt"
@@ -978,14 +981,14 @@ get_data() {
     TOTAL_CWE_CNT=$(grep -a "\[\*\]\ Statistics:" "${S17_LOG}" | cut -d: -f2 || true)
     TOTAL_CWE_BINS=$(grep -a "\[\*\]\ Statistics:" "${S17_LOG}" | cut -d: -f3 || true)
   fi
-  if [[ -f "${L10_SYS_EMU_RESULTS}" ]]; then
-    BOOTED=$(grep -c "Booted yes;" "${L10_SYS_EMU_RESULTS}" || true)
-    ICMP=$(grep -c "ICMP ok;" "${L10_SYS_EMU_RESULTS}" || true)
-    TCP_0=$(grep -c "TCP-0 ok;" "${L10_SYS_EMU_RESULTS}" || true)
-    TCP=$(grep -c "TCP ok;" "${L10_SYS_EMU_RESULTS}" || true)
-    IP_ADDR_CNT=$(grep -e "Booted yes;\|ICMP ok;\|TCP-0 ok;\|TCP ok" "${L10_SYS_EMU_RESULTS}" | grep -E -c "IP\ address:\ [0-9]+" || true)
+  if [[ -f "${L10_CSV_LOG}" ]]; then
+    BOOTED=$(grep -c "Booted yes;" "${L10_CSV_LOG}" || true)
+    ICMP=$(grep -c "ICMP ok;" "${L10_CSV_LOG}" || true)
+    TCP_0=$(grep -c "TCP-0 ok;" "${L10_CSV_LOG}" || true)
+    TCP=$(grep -c "TCP ok;" "${L10_CSV_LOG}" || true)
+    IP_ADDR_CNT=$(grep -e "Booted yes;\|ICMP ok;\|TCP-0 ok;\|TCP ok" "${L10_CSV_LOG}" | grep -E -c "IP\ address:\ [0-9]+" || true)
     # we make something like this: "bridge-default-normal"
-    L10_EMULATION_MODE=$(grep -e "Booted yes;\|ICMP ok;\|TCP-0 ok;\|TCP ok" "${L10_SYS_EMU_RESULTS}" | cut -d\; -f10 | sed 's/Network mode: //g' | tr -d '[:blank:]' | cut -d\( -f1 | sort -u | tr '\n' '-' | sed 's/-$//g' || true)
+    L10_EMULATION_MODE=$(grep -e "Booted yes;\|ICMP ok;\|TCP-0 ok;\|TCP ok" "${L10_CSV_LOG}" | cut -d\; -f10 | sed 's/Network mode: //g' | tr -d '[:blank:]' | cut -d\( -f1 | sort -u | tr '\n' '-' | sed 's/-$//g' || true)
   fi
   if [[ -f "${L20_LOG}" ]]; then
     # NMAP_UP=$(grep -a "\[\*\]\ Statistics:" "${L15_LOG}" | cut -d: -f2 || true)
@@ -1078,7 +1081,7 @@ os_detector() {
           SYSTEM+=" / v${lSYSTEM_VERSION}"
           VERIFIED=1
         done
-        if [[ ${VERIFIED} -eq 1 ]]; then
+        if [[ "${VERIFIED}" -eq 1 ]]; then
           print_os "${SYSTEM}"
         fi
       fi
@@ -1086,7 +1089,7 @@ os_detector() {
   fi
 
   #### The following check is needed if the aggreagator has failed till now
-  if [[ ${VERIFIED} -eq 0 && -f "${S03_LOG}" ]]; then
+  if [[ "${VERIFIED}" -eq 0 && -f "${S03_LOG}" ]]; then
     # the OS was not verified in the first step (but we can try to verify it now with more data of other modules)
     mapfile -t lOS_DETECTED_ARR < <(grep "verified.*operating\ system\ detected" "${S03_LOG}" 2>/dev/null | cut -d: -f1,2 | awk '{print $2 " - #" $5}' | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" || true)
     if [[ "${#lOS_DETECTED_ARR[@]}" -gt 0 ]]; then
@@ -1109,11 +1112,11 @@ os_detector() {
   fi
 
   #### The following check is just in place if something went wrong
-  if [[ ${VERIFIED} -eq 0 ]]; then
+  if [[ "${VERIFIED}" -eq 0 ]]; then
     # usually the results of the kernel module checker are already used in f17 (first os check)
     # but just in case something went wrong we use it now
     os_kernel_module_detect
-    if [[ ${VERIFIED} -eq 1 ]]; then
+    if [[ "${VERIFIED}" -eq 1 ]]; then
       print_os "${SYSTEM}"
     fi
   fi
@@ -1142,7 +1145,7 @@ print_os() {
   local lSYSTEM="${1:-}"
   lSYSTEM="${lSYSTEM//[![:print:]]/}"
 
-  if [[ ${VERIFIED} -eq 1 ]]; then
+  if [[ "${VERIFIED}" -eq 1 ]]; then
     print_output "[+] Operating system detected (""${ORANGE}""verified${GREEN}): ${ORANGE}${lSYSTEM}${NC}"
     if [[ "${VERIFIED_S03}" -eq 1 ]]; then
       write_link "s03"
@@ -1178,8 +1181,8 @@ cwe_logging() {
       print_output "[+] cwe-checker found a total of ""${ORANGE}""${TOTAL_CWE_CNT}""${GREEN}"" security issues in ${ORANGE}${TOTAL_CWE_BINS}${GREEN} tested binaries:"
       write_link "s17"
       for lCWE_ENTRY in "${lCWE_OUT_ARR[@]}"; do
-        lCWE="$(echo "${lCWE_ENTRY}" | awk '{print $1}')"
-        lCWE_DESC="$(echo "${lCWE_ENTRY}" | cut -d\  -f2-)"
+        lCWE="$(awk '{print $1}' <<<"${lCWE_ENTRY}")" # field 1
+        lCWE_DESC="${lCWE_ENTRY#* }"                  # field 2-
         # do not change this to grep -c!
         # shellcheck disable=SC2126
         lBINS_CWE_CHCK_CNT="$(grep "${lCWE}" "${LOG_DIR}"/"${lLOG_DIR_MOD}"/cwe_*.json 2>/dev/null | wc -l || true)"

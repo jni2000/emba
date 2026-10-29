@@ -43,20 +43,20 @@ S27_perl_check() {
     if [[ -f "${BASE_LINUX_FILES}" && "${FULL_TEST}" -eq 0 ]]; then
       # if we have the base linux config file we only test non known Linux binaries
       # with this we do not waste too much time on open source Linux stuff
-      lNAME=$(basename "$(echo "${lPL_SCRIPT}" | cut -d';' -f2)" 2>/dev/null)
+      lNAME=$(basename "$(cut -d ';' -f2 <<<"${lPL_SCRIPT}")" 2>/dev/null) # field 2
       if grep -E -q "^${lNAME}$" "${BASE_LINUX_FILES}" 2>/dev/null; then
         continue
       fi
     fi
     ((lS27_PL_SCRIPTS += 1))
-    s27_zarn_perl_checks "$(echo "${lPL_SCRIPT}" | cut -d';' -f2)" &
+    s27_zarn_perl_checks "$(cut -d ';' -f2 <<<"${lPL_SCRIPT}")" & # field 2
     local lTMP_PID="$!"
     lWAIT_PIDS_S27+=("${lTMP_PID}")
     max_pids_protection "${MAX_MOD_THREADS}" lWAIT_PIDS_S27
   done
 
   wait_for_pid "${lWAIT_PIDS_S27[@]}"
-  [[ -d "${TMP_DIR}/s27" ]] && (rm -r "${TMP_DIR}"/s27 || true)
+  [[ -d "${TMP_DIR}/s27" ]] && (rm -r -- "${TMP_DIR}/s27" || true)
 
   if [[ -f "${TMP_DIR}/S27_VULNS.tmp" ]]; then
     lS27_PL_VULNS=$(awk '{sum += $1 } END { print sum }' "${TMP_DIR}"/S27_VULNS.tmp)
@@ -89,13 +89,13 @@ s27_zarn_perl_checks() {
   lPL_LOG="${LOG_PATH_MODULE}/zarn_${lNAME}.txt"
   if [[ "${lPL_SCRIPT: -4}" == ".cgi" ]]; then
     if ! [[ -d "${TMP_DIR}"/s27 ]]; then
-      mkdir "${TMP_DIR}"/s27
+      mkdir -- "${TMP_DIR}"/s27
     fi
     # as zarn does not like cgi's, we need to temp rename these files now
     cp "${lPL_SCRIPT}" "${TMP_DIR}"/s27/"${lNAME/.cgi/.pl}"
     if [[ -f "${TMP_DIR}/s27/${lNAME/.cgi/.pl}" ]]; then
       perl "${EXT_DIR}"/zarn/zarn.pl -r "${EXT_DIR}"/zarn/rules/default.yml --source "${TMP_DIR}/s27/${lNAME/.cgi/.pl}" --sarif "${LOG_PATH_MODULE}/zarn_${lNAME}.sarif" | tee -a "${lPL_LOG}" || print_error "[-] Analysis of ${lNAME} failed"
-      rm "${TMP_DIR}/s27/${lNAME/.cgi/.pl}" || true
+      rm -- "${TMP_DIR}/s27/${lNAME/.cgi/.pl}" || true
     fi
   else
     perl "${EXT_DIR}"/zarn/zarn.pl -r "${EXT_DIR}"/zarn/rules/default.yml --source "${lPL_SCRIPT}" --sarif "${LOG_PATH_MODULE}/zarn_${lNAME}.sarif" | tee -a "${lPL_LOG}" || print_error "[-] Analysis of ${lNAME} failed"
@@ -104,7 +104,7 @@ s27_zarn_perl_checks() {
   ## reporting starts here
   lVULNS=$(grep -c "\[vuln\]" "${lPL_LOG}" 2>/dev/null || true)
   if [[ "${lVULNS}" -gt 0 ]]; then
-    [[ ! -d "${lS27_SOURCE_DIR}" ]] && mkdir -p "${lS27_SOURCE_DIR}"
+    [[ ! -d "${lS27_SOURCE_DIR}" ]] && mkdir -p -- "${lS27_SOURCE_DIR}"
     # check if this is common linux file:
     local lCOMMON_FILES_FOUND=""
     local lCFF=""
@@ -133,9 +133,9 @@ s27_zarn_perl_checks() {
     write_log "\n" "${lPL_LOG_LINKED}"
 
     for lSARIF_RESULT in "${lZARN_SARIF_RESULTS_ARR[@]}"; do
-      lZARN_VULN_TITLE=$(echo "${lSARIF_RESULT}" | jq -rc '.properties.title' || true)
-      lZARN_VULN_MESSAGE=$(echo "${lSARIF_RESULT}" | jq -rc '.message.text' || true)
-      lZARN_VULN_LINE=$(echo "${lSARIF_RESULT}" | jq -rc '.locations[].physicalLocation.region.startLine' || true)
+      lZARN_VULN_TITLE="$(jq -rc '.properties.title' <<<"${lSARIF_RESULT}" || true)"
+      lZARN_VULN_MESSAGE="$(jq -rc '.message.text' <<<"${lSARIF_RESULT}" || true)"
+      lZARN_VULN_LINE="$(jq -rc '.locations[].physicalLocation.region.startLine' <<<"${lSARIF_RESULT}" || true)"
 
       write_csv_log "$(print_path "${lPL_SCRIPT}")" "${lVULNS}" "${lCFF}" "${lZARN_VULN_TITLE}" "${lZARN_VULN_LINE}" "${lZARN_VULN_MESSAGE}"
       write_log "$(indent "$(indent "Vulnerability title: ${ORANGE}${lZARN_VULN_TITLE}${NC}")")" "${lPL_LOG_LINKED}"

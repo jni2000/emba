@@ -167,19 +167,23 @@ populate_karrays() {
   fi
 
   # unique our results
-  eval "lKERNEL_VERSION_ARR=($(for i in "${lKERNEL_VERSION_ARR[@]}"; do
-    if [[ -z "${i}" ]]; then
-      # remove empty entries:
+  local -a lKERNEL_VERSION_FILTERED_ARR=()
+  local lKERNEL_VERSION=""
+  for lKERNEL_VERSION in "${lKERNEL_VERSION_ARR[@]}"; do
+    if [[ -z "${lKERNEL_VERSION}" ]]; then
       continue
     fi
-    if ! [[ "${i}" =~ .*[0-9]\.[0-9].* ]]; then
-      # remove lines without a possible version identifier like *1.2*
+    if ! [[ "${lKERNEL_VERSION}" =~ .*[0-9]\.[0-9].* ]]; then
       continue
     fi
-    echo "\"${i}\""
-  done | sort -u))"
+    lKERNEL_VERSION_FILTERED_ARR+=("${lKERNEL_VERSION}")
+  done
 
-  # eval "KERNEL_DESC=($(for i in "${KERNEL_DESC[@]}" ; do echo "\"${i}}\"" ; done | sort -u))"
+  lKERNEL_VERSION_ARR=()
+  if [[ "${#lKERNEL_VERSION_FILTERED_ARR[@]}" -gt 0 ]]; then
+    mapfile -t lKERNEL_VERSION_ARR < <(printf '%s\n' "${lKERNEL_VERSION_FILTERED_ARR[@]}" | sort -u)
+  fi
+
   mapfile -t KERNEL_DESC < <(printf "%s\n" "${KERNEL_DESC[@]}" | sort -u)
 
   # if we have no kernel version identified -> we try to identify a possible identifier in the path:
@@ -370,7 +374,7 @@ module_analyzer() {
     lK_AUTHOR=$(modinfo "${lKMODULE}" | grep "^author:" || true)
     lK_AUTHOR="${lK_AUTHOR//author:\ /}"
     lK_AUTHOR="${lK_AUTHOR//Maintainer:\ /}"
-    lK_AUTHOR="$(echo "${lK_AUTHOR}" | tr '\n' '-')"
+    lK_AUTHOR="${lK_AUTHOR//$'\n'/-}"
     lK_AUTHOR=$(clean_package_details "${lK_AUTHOR}")
 
     lK_DESC=$(modinfo "${lKMODULE}" | grep "^description:" || true)
@@ -382,7 +386,7 @@ module_analyzer() {
     lSHA512_CHECKSUM="$(sha512sum "${lKMODULE}" | awk '{print $1}')"
 
     lK_FILE_OUT=$(file -b "${lKMODULE}" 2>/dev/null)
-    lK_ARCH=$(echo "${lK_FILE_OUT}" | cut -d ',' -f2)
+    lK_ARCH=$(cut -d ',' -f2 <<<"${lK_FILE_OUT}") # field 2
     lK_ARCH=${lK_ARCH#\ }
 
     if [[ "${lK_FILE_OUT}" == *"not stripped"* ]]; then
@@ -437,7 +441,9 @@ module_analyzer() {
       local lAPP_NAME="linux_kernel"
       local lPACKAGING_SYSTEM="${lAPP_NAME}+module"
 
-      lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lK_AUTHOR}:${lAPP_NAME}:${KV_ARR[*]}:*:*:*:*:*:*"
+      # lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lK_AUTHOR}:${lAPP_NAME}:${KV_ARR[*]}:*:*:*:*:*:*"
+      lCPE_IDENTIFIER=$(build_cpe_identifier ":${lK_AUTHOR}:${lAPP_NAME}:${KV_ARR[*]}" "o")
+
       lPURL_IDENTIFIER=$(build_generic_purl ":${lK_AUTHOR}:${lAPP_NAME}:${KV_ARR[*]}" "${lOS_IDENTIFIED}" "${lK_ARCH:-NA}")
 
       # add source file path information to our properties array:

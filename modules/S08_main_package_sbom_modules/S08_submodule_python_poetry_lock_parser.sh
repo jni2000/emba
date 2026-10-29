@@ -96,12 +96,12 @@ S08_submodule_python_poetry_lock_parser() {
 
         lAPP_LIC="NA"
 
-        lAPP_VERS=$(echo "${lPOETRY_ENTRY}" | cut -d\| -f2)
+        lAPP_VERS=$(cut -d '|' -f2 <<<"${lPOETRY_ENTRY}") # field 2
         lAPP_VERS=${lAPP_VERS/version\ =\ /}
         lAPP_VERS=$(clean_package_details "${lAPP_VERS}")
         lAPP_VERS=$(clean_package_versions "${lAPP_VERS}")
 
-        lAPP_DESC=$(echo "${lPOETRY_ENTRY}" | cut -d\| -f3)
+        lAPP_DESC=$(cut -d '|' -f3 <<<"${lPOETRY_ENTRY}") # field 3
         lAPP_DESC=${lAPP_DESC/description\ =\ /}
         lAPP_DESC=$(clean_package_details "${lAPP_DESC}")
 
@@ -112,7 +112,7 @@ S08_submodule_python_poetry_lock_parser() {
         mapfile -t lAPP_FILES_ARR < <(echo "${lPOETRY_ENTRY}" | cut -d\| -f5 | sed 's/ - /\n/g')
 
         lAPP_VENDOR="${lAPP_NAME}"
-        lCPE_IDENTIFIER="cpe:${CPE_VERSION}:a:${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}:*:*:*:*:*:*"
+        lCPE_IDENTIFIER=$(build_cpe_identifier ":${lAPP_VENDOR}:${lAPP_NAME}:${lAPP_VERS}")
 
         if [[ -z "${lOS_IDENTIFIED}" ]]; then
           lOS_IDENTIFIED="generic"
@@ -133,7 +133,7 @@ S08_submodule_python_poetry_lock_parser() {
 
         local lCNT=0
         for lPOETRY_FILE_ENTRY in "${lAPP_FILES_ARR[@]}"; do
-          lPOETRY_FILE_ENTRY=$(echo "${lPOETRY_FILE_ENTRY}" | cut -d '"' -f2)
+          lPOETRY_FILE_ENTRY=$(cut -d '"' -f2 <<<"${lPOETRY_FILE_ENTRY}") # field 2
           lPROP_ARRAY_INIT_ARR+=("path:${lPOETRY_FILE_ENTRY}")
           # we limit the logging of the package files to 500 files per package
           if [[ "${lCNT}" -gt "${SBOM_MAX_FILE_LOG}" ]]; then
@@ -158,7 +158,7 @@ S08_submodule_python_poetry_lock_parser() {
         write_csv_log "${lPACKAGING_SYSTEM}" "${lPY_LCK_ARCHIVE}" "${lMD5_CHECKSUM:-NA}/${lSHA256_CHECKSUM:-NA}/${lSHA512_CHECKSUM:-NA}" "${lAPP_NAME}" "${lAPP_VERS}" "${lSTRIPPED_VERSION:-NA}" "${lAPP_LIC}" "${lAPP_MAINT}" "${lAPP_ARCH:-NA}" "${lCPE_IDENTIFIER}" "${lPURL_IDENTIFIER}" "${SBOM_COMP_BOM_REF:-NA}" "${lAPP_DESC}"
         lPOS_RES=1
       done <"${TMP_DIR}/poetry.lock.tmp"
-      rm -f "${TMP_DIR}/poetry.lock.tmp"
+      rm -f -- "${TMP_DIR}/poetry.lock.tmp"
     done
 
     if [[ "${lPOS_RES}" -eq 0 ]]; then

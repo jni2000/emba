@@ -38,12 +38,14 @@ S110_yara_check() {
   local lMEM_LIMIT=$(("${TOTAL_MEMORY}" * 80 / 100))
   local lYARA_OUT_LINE=""
 
-  if [[ ${YARA} -eq 1 ]]; then
+  if [[ "${YARA}" -eq 1 ]]; then
     # if multiple instances are running we can't overwrite it
     # after updating yara rules we should remove this file and it gets regenerated
     if [[ ! -f "${lDIR_COMB_YARA}" ]]; then
-      find "${EXT_DIR}""/yara" -xdev -iname '*.yar' -exec realpath {} \; | xargs printf 'include "%s"\n' | sort -n >"${lDIR_COMB_YARA}"
+      find "${EXT_DIR}""/yara" -xdev -iname '*.yar' -exec realpath {} + | xargs printf 'include "%s"\n' | sort -n >"${lDIR_COMB_YARA}"
     fi
+
+    write_csv_log "yara rule" "matched file"
 
     ulimit -Sv "${lMEM_LIMIT}"
     yara -p "${lMAX_MOD_THREADS}" -r -w -s -m -L -g "${lDIR_COMB_YARA}" "${LOG_DIR}"/firmware >"${LOG_PATH_MODULE}"/yara_complete_output.txt || true
@@ -52,7 +54,7 @@ S110_yara_check() {
     while read -r lYARA_OUT_LINE; do
       local lAUTHOR_STRING=" [] [author="
       if [[ "${lYARA_OUT_LINE}" == *"${lAUTHOR_STRING}"* ]]; then
-        lYRULE=$(echo "${lYARA_OUT_LINE}" | awk '{print $1}')
+        lYRULE="$(awk '{print $1}' <<<"${lYARA_OUT_LINE}")" # field 1
         lMATCH_FILE=$(echo "${lYARA_OUT_LINE}" | grep "\ \[\]\ \[author=\"" | rev | awk '{print $1}' | rev)
         lMATCH_FILE_NAME=$(basename "${lMATCH_FILE}")
         # this rule does not help us a lot ... remove it from results
@@ -62,6 +64,7 @@ S110_yara_check() {
           write_log "" "${LOG_PATH_MODULE}/${lMATCH_FILE_NAME}".txt
           write_log "[+] Yara rule ${ORANGE}${lYRULE}${GREEN} matched in ${ORANGE}${lMATCH_FILE}${NC}" "${LOG_PATH_MODULE}/${lMATCH_FILE_NAME}".txt
           echo "" >>"${LOG_PATH_MODULE}/${lMATCH_FILE_NAME}".txt
+          write_csv_log "${lYRULE}" "${lMATCH_FILE}"
           lCOUNTING=$((lCOUNTING + 1))
         fi
       fi
@@ -75,7 +78,7 @@ S110_yara_check() {
     write_log "[*] Statistics:${lCOUNTING}"
 
     [[ "${lCOUNTING}" -eq 0 ]] && print_output "[-] No code patterns found with yara."
-    [[ -f "${lDIR_COMB_YARA}" ]] && rm "${lDIR_COMB_YARA}"
+    [[ -f "${lDIR_COMB_YARA}" ]] && rm -- "${lDIR_COMB_YARA}"
   else
     print_output "[!] YARA checks disabled - enable it in your scanning profile with ${ORANGE}export YARA=1${NC}."
   fi
