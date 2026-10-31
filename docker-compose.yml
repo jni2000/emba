@@ -36,7 +36,7 @@ services:
         - CONTAINER_NUMBER=1
     # /dev is needed for the system emulator (L10)
     volumes:
-        - /home/${USER}/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
+        - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:rw
         - ${FIRMWARE}/:/firmware:ro
         - ${LOG}/:/logs
         - ${EMBA}/:/emba:ro
@@ -71,7 +71,7 @@ services:
         - USER
         - CONTAINER_NUMBER=2
     volumes:
-        - /home/${USER}/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:ro
+        - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:rw
         - ${FIRMWARE}/:/firmware:ro
         - ${LOG}/:/logs
         - ${EMBA}/:/emba:ro
