@@ -34,6 +34,7 @@ services:
     environment:
         - USER
         - CONTAINER_NUMBER=1
+        - CVE_MSSQL_CONNECTION_STRING=${CVE_MSSQL_CONNECTION_STRING:-}
     # /dev is needed for the system emulator (L10)
     volumes:
         - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:rw
@@ -70,6 +71,7 @@ services:
     environment:
         - USER
         - CONTAINER_NUMBER=2
+        - CVE_MSSQL_CONNECTION_STRING=${CVE_MSSQL_CONNECTION_STRING:-}
     volumes:
         - /home/sodiacs/.cache/cve-bin-tool:/root/.cache/cve-bin-tool:rw
         - ${FIRMWARE}/:/firmware:ro

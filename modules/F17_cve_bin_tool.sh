@@ -46,8 +46,9 @@ F17_cve_bin_tool() {
   # cve-bin-tool "${FIRMWARE_PATH_BAK}" --offline --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/cve-bin-tool-sbom.json" > "${LOG_PATH_MODULE}/cve-bin-tool-sbom.log"
   print_output "[*] cve-bin-tool scan of ${FIRMWARE_PATH_BAK} starting ..." "no_log"
   local lCVE_BIN_TOOL="/external/cve-bin-tool/cve_bin_tool/cli.py"
-  python3 "${lCVE_BIN_TOOL}" "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv,json -o "${LOG_PATH_MODULE}/cve-bin-tool" --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/../sbom-report/sbom_cyclonedx.json" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>"${LOG_PATH_MODULE}/cve-bin-tool.err"
-  
+  # python3 "${lCVE_BIN_TOOL}" "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv,json -o "${LOG_PATH_MODULE}/cve-bin-tool" --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/../sbom-report/sbom_cyclonedx.json" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>"${LOG_PATH_MODULE}/cve-bin-tool.err"
+  cve-bin-tool-mssql "${FIRMWARE_PATH_BAK}" --offline -l debug -f csv,json -o "${LOG_PATH_MODULE}/cve-bin-tool" --sbom-type cyclonedx --sbom-output "${LOG_PATH_MODULE}/../sbom-report/sbom_cyclonedx.json" > "${LOG_PATH_MODULE}/cve-bin-tool.log" 2>"${LOG_PATH_MODULE}/cve-bin-tool.err"
+ 
   lEXIT_CODE=$?
   
   if [[ ${lEXIT_CODE} -ge 2 ]]; then
@@ -557,7 +558,8 @@ cve_bin_tool_threader() {
 
   print_output "[*] cve-bin-tool scan SBOM ${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" "no_log"
 
-  python3 "${lCVE_BIN_TOOL}" -i "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" -l debug --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o "${LOG_PATH_MODULE}/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}" || true
+  # python3 "${lCVE_BIN_TOOL}" -i "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" -l debug --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o "${LOG_PATH_MODULE}/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}" || true
+  cve-bin-tool-mssql -i "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" -l debug --disable-version-check --disable-validation-check --no-0-cve-report --offline -f csv -o "${LOG_PATH_MODULE}/${lBOM_REF}_${lPRODUCT_NAME}_${lVERS}" || true
 
   #  if [[ -f "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" ]]; then
   #    rm -- "${LOG_PATH_MODULE}/${lBOM_REF}.tmp.csv" || true
